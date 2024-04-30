@@ -1,0 +1,10 @@
+teneto
+dionysus
+scipy
+numpy
+matplotlib
+networkx
+itertools
+pandas
+random
+
