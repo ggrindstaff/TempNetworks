@@ -76,6 +76,7 @@ k= 3
 p = 0
 l = 2
 
+
 G = nx.watts_strogatz_graph(n,k,p)
 netWS,sxsWS,timesws = exponential_rewiring(G,l,T,max_dim)
 Y = d.Filtration(sxsWS)
