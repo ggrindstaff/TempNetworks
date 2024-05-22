@@ -1,0 +1,4 @@
+{
+    "python.analysis.extraPaths":["./tempnets"],
+    "terminal.integrated.cwd": "${workspaceFolder}"
+}
