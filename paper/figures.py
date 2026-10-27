@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 import networkx as nx
 import numpy as np
 import pandas as pd
@@ -88,7 +89,7 @@ def draw_diagram(ax, dgms, T, legend=True, pmax=None):
       ax.scatter(d[:, 0], pers, s=5, color=DIM_COLORS[dim % 3], alpha=0.6, lw=0, label="$H_%d$" % dim)
   ax.set_xlim(-0.03 * T, 1.03 * T)
   ax.set_ylim(-0.04 * pmax, 1.25 * pmax)
-  ax.set_xticks([0, T / 2, T])
+  ax.set_xticks([x for x in MaxNLocator(nbins=4, integer=True).tick_values(0, T) if 0 <= x <= T])
   yticks = [y for y in ax.yaxis.get_major_locator().tick_values(0, pmax) if 0 <= y <= pmax]
   ax.set_yticks(yticks + [inf])
   ax.set_yticklabels(["%g" % y for y in yticks] + [r"$\infty$"])
@@ -118,7 +119,7 @@ def fig4():
   nets = [make_model(name, n, T, seed) for name, _ in MODELS]
   all_dgms = [net.flag(max_dim=2).persistence() for net in nets]
   #one persistence scale for all six diagrams
-  pmax = max(finite_persistence_max(d, T) for d in all_dgms)
+  pmax = max(finite_persistence_max(d, net.T) for d, net in zip(all_dgms, nets))
   for k, (name, label) in enumerate(MODELS):
     sub = subfigs.ravel()[k]
     net, dgms = nets[k], all_dgms[k]
@@ -130,7 +131,7 @@ def fig4():
     pos = nx.circular_layout(sorted(net.nodes))
     for i, t in enumerate([T / 4, T / 2, 3 * T / 4]):
       draw_snapshot(sub.add_subplot(gs[0, i]), net, t, pos)
-    draw_diagram(sub.add_subplot(gs[1, :]), dgms, T, legend=(k == 0), pmax=pmax)
+    draw_diagram(sub.add_subplot(gs[1, :]), dgms, net.T, legend=(k == 0), pmax=pmax)
   save(fig, "fig4_models")
 
 
@@ -138,7 +139,8 @@ def fig6_run(args):
   name, seed, n, T, tau = args
   net = make_model(name, n, T, seed)
   dgms = net.flag(max_dim=2).persistence()
-  return name, seed, net.graph_autocorrelation_continuous(tau), tn.top_autocorr_continuous(dgms, tau, T)
+  #discrete models end their window with the last step, so use net.T
+  return name, seed, net.graph_autocorrelation_continuous(tau), tn.top_autocorr_continuous(dgms, tau, net.T)
 
 def fig6():
   """Topological vs graph autocorrelation across the models."""
