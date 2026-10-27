@@ -4,7 +4,8 @@ import numpy as np
 from .utils import array_homology
 
 def pairs_to_array(x,n):
-  #x[k,t] for the k-th node pair of np.triu_indices(n,1) -> symmetric n x n x T array
+  """Turn x[k, t], indexed by the k-th node pair of np.triu_indices(n, 1), into a
+  symmetric n x n x T array."""
   iu = np.triu_indices(n,1)
   arr = np.zeros(shape=(n,n,x.shape[1]))
   arr[iu[0],iu[1],:] = x
@@ -12,9 +13,10 @@ def pairs_to_array(x,n):
   return arr
 
 def rand_binomial(n,T,birth,stay,init=0):
-  #each node pair is a two-state Markov chain: an absent edge appears with probability
-  #birth and a present edge stays with probability stay at each step; edges are
-  #present at the first step with probability init
+  """Discrete-time network where each node pair is a two-state Markov chain: an
+  absent edge appears with probability birth and a present edge stays with
+  probability stay at each step; edges are present at the first step with
+  probability init. Returns an n x n x T array. See generators.binomial."""
   m = n*(n-1)//2
   x = np.zeros(shape=(m,T),dtype=bool)
   x[:,0] = np.random.rand(m) < init
@@ -24,8 +26,9 @@ def rand_binomial(n,T,birth,stay,init=0):
   return pairs_to_array(x,n)
 
 def rand_poisson(n,T,lam):
-  #each node pair has one-step contacts separated by Poisson(lam) gaps; a gap of 0
-  #merges two contacts
+  """Discrete-time network where each node pair has one-step contacts separated
+  by Poisson(lam) gaps (a gap of 0 merges two contacts). Returns an n x n x T
+  array. See generators.poisson."""
   m = n*(n-1)//2
   x = np.zeros(shape=(m,T),dtype=bool)
   for k in range(m):
@@ -36,7 +39,9 @@ def rand_poisson(n,T,lam):
   return pairs_to_array(x,n)
 
 def to_temp_net(net,times,w):
-  #sample a network given by intervals {(u,v): [(start,end),...]} at the window times w
+  """Sample a network given by intervals {(u, v): [(start, end), ...]} at the
+  times w: an n x n x len(w) array with nodes in the order of net.nodes. See also
+  TemporalNetwork.to_array."""
   nodes = list(net.nodes)
   index = {v:i for i,v in enumerate(nodes)}
   n = len(nodes)
@@ -54,9 +59,9 @@ def to_temp_net(net,times,w):
   return adj
 
 def partition(arr,w,times=None):
-  #coarsen time into the windows starting at w (the last window is open-ended): an edge
-  #is present in a window if it is present at any of its time steps.
-  #times are the labels of the time steps, 0..T-1 by default
+  """Coarsen an n x n x T array into the windows starting at the times w (the last
+  window is open-ended): an edge is present in a window if it is present at any of
+  its steps. times labels the steps (0, ..., T-1 by default)."""
   if times is None:
     times = list(range(arr.shape[2]))
   new = np.zeros(shape=(arr.shape[0],arr.shape[1],len(w)))
@@ -67,11 +72,14 @@ def partition(arr,w,times=None):
   return new
 
 def scrambly_arr(arr):
-  #randomly permute the time steps
+  """The array with its time steps randomly permuted (a null model that keeps
+  each snapshot but destroys temporal order)."""
   perm = np.random.permutation(arr.shape[2])
   return arr[:,:,perm]
 
 def rref_hom(input,m):
+    """The array input and m - 1 time-permuted copies (scrambly_arr), with the zigzag
+    diagrams of each (array_homology). Returns (arrays, diagrams)."""
     rref = [input]
     results = [array_homology(input)]
     for i in range(1,m):
@@ -80,6 +88,9 @@ def rref_hom(input,m):
     return rref, results
 
 def sun_array(n,T,l):
+  """Deterministic n x n x T test network: the n nodes are arranged in rays of l
+  nodes along a ring, and connections between and within rays shift with period
+  l. Used as a structured example in models.py; see generators.sun."""
   sun = np.zeros(shape=(n,n,T))
   for time in range(T):
     t = time%l

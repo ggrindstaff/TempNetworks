@@ -1,3 +1,9 @@
+"""Legacy: TemporalGraphComplex, an earlier object-oriented interface.
+
+It needs bats-tda (pip install "tempnets[extras]"), which does not build on
+current Python versions. tempnets.TemporalNetwork and tempnets.generators cover
+the same ground.
+"""
 import networkx as nx
 import bats
 import numpy as np

@@ -1,4 +1,13 @@
+"""Experiments on the random models (an experiment script, not a library module).
 
+Generates each model with T = 100, n = 40, density 0.3 and new-edge rate 0.1,
+prints the density and rate each achieves, computes their zigzag persistence and
+saves the diagrams to figs/. It then compares graph and topological
+autocorrelation, and burstiness, over 50 ER periodic networks
+(figs/adjacency.png, figs/burstiness.png).
+
+Run from the repository root with: python -m tempnets.models  (about 15 minutes)
+"""
 from .utils import *
 #level_set,plot_diags,temp_net_to_clique_clx, ER_periodic, to_ee, is_in, exponential_rewiring, is_in_ee,intersection
 from .topfunctions import graph_autocorrelation, top_autocorr, burstiness, pers_burstiness

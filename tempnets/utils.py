@@ -1,3 +1,11 @@
+"""Lower-level building blocks: interval and entry/exit-list conversions, the
+random models with explicit parameters, zigzag persistence through dionysus, and
+plotting. Most users want tempnets.TemporalNetwork and tempnets.generators, which
+are built on these.
+
+Formats used here: an interval list is [(start, end), ...]; an entry/exit list is
+the flat [start, end, start, end, ...] that dionysus takes, one per simplex.
+"""
 import dionysus as d
 import scipy.spatial.distance as distance
 import numpy as np
@@ -16,6 +24,10 @@ Level set function for temporal graph, filters to the subgraph present at time t
 """
 
 def level_set(G,times,t):
+  """The graph of the edges of G present at time t.
+
+  times[n + i] is the entry/exit list of the i-th edge of G.edges (n = number of
+  nodes; graph_ee builds such a list). An edge is present on [entry, exit)."""
   H = nx.Graph()
   H.add_nodes_from(G)
   n = len(G.nodes)
@@ -34,6 +46,9 @@ The ```intersection``` function computes the intersection of n lists of times, f
 """
 
 def intersection(all_times):
+  """Intersect lists of intervals: all_times is a list of interval lists
+  [(start, end), ...]; returns the intervals where every list is present. Intervals
+  that only touch do not intersect."""
   if len(all_times)==1:
     return all_times[0]
   list1=all_times[0]
@@ -66,6 +81,12 @@ The dionysus version needs to be converted into the (simplices, times) format. W
 # if timestamps are non-integer, we would require a list of all measured times,
 #   to be addressed in separate function
 def time_list_to_ee(b,T,inter='union',step=1):
+  """Entry/exit list of a simplex present at the sorted integer time steps b.
+
+  Consecutive steps (differing by step) merge into one interval. inter sets the
+  interval of a single step t: 'union' [t-1/2, t+1/2] (start clipped at 0),
+  'intersection' [t, t+0.4], 'flag' [t, t]. The list is left open-ended (odd
+  length) if the last step is >= T."""
   bank = b.copy()
   if inter=='union':
     alpha = 0.5
@@ -92,6 +113,11 @@ def time_list_to_ee(b,T,inter='union',step=1):
   return times
 
 def timelist_to_ee_non_int(timelist, all_times,buffer=1,**kwargs):
+  """Entry/exit list, in units of grid steps, of a simplex recorded at the
+  times timelist, which lie on the regular grid all_times.
+
+  Each recorded time keeps the simplex present for its own grid step and the next
+  buffer steps; the result uses time_list_to_ee (kwargs are passed on)."""
   buffer = buffer+1
   index = {t:i for i,t in enumerate(all_times)}
   new_times = [index[t] for t in timelist]
@@ -112,6 +138,8 @@ def timelist_to_ee_non_int(timelist, all_times,buffer=1,**kwargs):
   return ee
 
 def to_ee(time_dict,sxs,T):
+  """Entry/exit lists for dionysus, in the order of the simplex list sxs: vertices
+  are present on [0, T], other simplices on their intervals in time_dict."""
   dtimes=[]
   for sx in sxs:
     if len(sx)==1:
@@ -121,13 +149,16 @@ def to_ee(time_dict,sxs,T):
   return dtimes
 
 def graph_ee(G,time_dict,T):
-  #entry/exit lists in the order level_set expects: nodes, then the edges of G.edges
+  """Entry/exit lists in the order level_set expects: the nodes of G (present on
+  [0, T]), then the edges of G.edges with their intervals from time_dict."""
   dtimes = [[0,T] for v in G.nodes]
   for (u,v) in G.edges:
     dtimes.append(list(itertools.chain.from_iterable(time_dict[(min(u,v),max(u,v))])))
   return dtimes
 
 def ee_to_time_list(times,T,buffer=0.5):
+  """Sample an entry/exit list: the times, spaced buffer apart, inside its
+  intervals that start before T."""
   bank = []
   time =0
   for i in range(len(times)):
@@ -142,6 +173,7 @@ def ee_to_time_list(times,T,buffer=0.5):
   return bank
 
 def is_in(time,t):
+  """Whether t lies in one of the closed intervals [(t1, t2), ...] of time."""
   flag = False
   for (t1,t2) in time:
     if t1<=t<=t2:
@@ -149,14 +181,17 @@ def is_in(time,t):
   return flag
 
 def is_in_ee(dtimes,t):
+  """Whether t lies in one of the closed intervals of the entry/exit list dtimes
+  (an open-ended final entry is not counted)."""
   for i in range(len(dtimes)-1):
     if dtimes[i]<=t<=dtimes[i+1]:
       return i%2==0
   return False
 
 def as_arrays(dgms):
-  #persistence diagrams in any of the package's formats (dionysus diagrams, lists of
-  #(birth, death) tuples, or arrays) -> one float array of (birth, death) rows per dimension
+  """Persistence diagrams in any of the package's formats (dionysus diagrams,
+  lists of (birth, death) tuples, or arrays) as one float array of (birth, death)
+  rows per dimension."""
   out = []
   for dgm in dgms:
     if isinstance(dgm,np.ndarray):
@@ -172,9 +207,9 @@ shorter than that collapses to a point and dionysus rejects the whole filtration
 """
 
 def snap_ee(ee):
-  #round an entry/exit list to float32, dropping intervals that collapse to a point and
-  #merging intervals whose gap collapses. Rounding is monotone, so a coface's
-  #intervals stay inside its faces' intervals.
+  """Round an entry/exit list to float32, as dionysus stores times, dropping
+  intervals that collapse to a point and merging intervals whose gap collapses.
+  Rounding is monotone, so a coface's intervals stay inside its faces' intervals."""
   out = []
   for x in np.asarray(ee,dtype=np.float32).tolist():
     if len(out)>0 and x<=out[-1]:
@@ -184,8 +219,9 @@ def snap_ee(ee):
   return out
 
 def zigzag_persistence(sxs,dtimes):
-  #d.zigzag_homology_persistence on a list of simplices (or a d.Filtration) and their
-  #entry/exit lists, with times made safe for dionysus; returns (zz, dgms, cells)
+  """Zigzag persistence with dionysus: d.zigzag_homology_persistence on a list
+  of simplices (or a d.Filtration) and their entry/exit lists, with the times made
+  safe for dionysus by snap_ee. Returns dionysus' (zz, dgms, cells)."""
   f = sxs if isinstance(sxs,d.Filtration) else d.Filtration(sxs)
   return d.zigzag_homology_persistence(f,[snap_ee(ee) for ee in dtimes])
 
@@ -195,6 +231,9 @@ This function checks whether a zigzag complex (represented by a list of simplice
 """
 
 def check_simplicial(sxs,timebank):
+  """Whether a zigzag complex is a simplicial complex at every time: each
+  simplex of dimension >= 2 must have all its codimension-1 faces in sxs, present at
+  each of its sample times (timebank maps simplex tuples to lists of times)."""
   for simplex in sxs:
     if len(simplex)<=2:
       continue
@@ -212,8 +251,13 @@ def check_simplicial(sxs,timebank):
 
 """converts between a discrete temporal network (n x n x T array) and zigzag simplical complex"""
 def temp_net_to_clique_clx(arr,inter='union',max_dim=2):
-  #arr is an n x n x T array (see discrete.py); arr[i,j,t] or arr[j,i,t] nonzero
-  #means i and j are joined at time step t
+  """Clique complex of a discrete-time network, for dionysus.
+
+  arr is an n x n x T array (see discrete.py); arr[i,j,t] or arr[j,i,t] nonzero
+  means i and j are joined at step t. Edges get entry/exit lists from
+  time_list_to_ee(..., inter); a clique of up to max_dim + 1 nodes is present on the
+  intersection of its edges' intervals. Returns (simplices, entry/exit lists).
+  TemporalNetwork.from_array(arr).flag(max_dim) is the same construction."""
   n = arr.shape[0]
   T = arr.shape[2]
   simplices = [[i] for i in range(n)]
@@ -247,6 +291,10 @@ def temp_net_to_clique_clx(arr,inter='union',max_dim=2):
 """## Random model generators"""
 
 def periodic_intervals(T,freq,l,tda = 'bats'):
+  """Roughly periodic presence intervals on [0, T] for one edge: the first
+  interval starts uniformly in [0, freq) and lasts Exp(mean l); after that each gap
+  is freq + N(0, 1) (kept positive) and each interval lasts l. Returns
+  [(start, end), ...], or a flat entry/exit list if tda == 'dionysus'."""
   if freq <= 0:
     raise ValueError("freq (gap between appearances) must be positive")
   start = np.random.rand()*freq
@@ -269,6 +317,11 @@ def periodic_intervals(T,freq,l,tda = 'bats'):
   return t
 
 def ER_periodic(n,p,freq,l,T,max_dim):
+  """Erdos-Renyi periodic model: each edge of G(n, p) is present on
+  periodic_intervals(T, freq, l). Returns (graph, simplices, times) where times maps
+  sorted node tuples to interval lists, including the cliques of up to max_dim + 1
+  nodes (present where all their edges are). See generators.er_periodic for the
+  version specified by density and rate."""
   net = nx.Graph(directed=False)
   sxs = []
   #vertices remain in the network for the entire interval
@@ -301,6 +354,11 @@ def ER_periodic(n,p,freq,l,T,max_dim):
   return net,sxs,times
 
 def exponential_rewiring(net,l,T,max_dim=2):
+    """Rewire net at exponential intervals (mean l) on [0, T]: all edges of net are
+    present from time 0; at each event a uniformly random present edge is removed and
+    one of its endpoints is joined to a random new neighbour. Returns (graph of every
+    edge ever present, simplices, times) as ER_periodic does. See
+    generators.ws_rewiring."""
     n = net.number_of_nodes()
     sxs = []
     for i in range(n):
@@ -353,6 +411,11 @@ def exponential_rewiring(net,l,T,max_dim=2):
 """## Plotting and visualization"""
 
 def plot_diags(dgms,T,rotate=False,title="",save=""):
+  """Plot zigzag persistence diagrams (any format; one colour per dimension).
+
+  Deaths at or after T are drawn on the infinity line. rotate plots persistence
+  against birth instead of death against birth. save is a path without the .png
+  extension."""
   fig = plt.figure()
   eps = 0.1*T
   birth = []
@@ -421,6 +484,8 @@ def plot_diags(dgms,T,rotate=False,title="",save=""):
     plt.close(fig)
 
 def array_homology(input):
+    """Zigzag persistence diagrams (dionysus format) of the clique complex, up to
+    dimension 2, of an n x n x T array; see temp_net_to_clique_clx."""
     sxs, times = temp_net_to_clique_clx(input)
     #simplices = [sxs]
     #eelist = [times]
@@ -430,7 +495,8 @@ def array_homology(input):
     return dgms
 
 def remove_a_loop(G):
-  #remove a random edge lying on a cycle; None if G is a forest
+  """Remove a random edge lying on a cycle of G (one of a random cycle-basis
+  cycle) and return it as (min, max); None if G has no cycle."""
   cycles = nx.cycle_basis(G)
   if len(cycles)==0:
     return None
@@ -441,7 +507,8 @@ def remove_a_loop(G):
   return (min(s,t),max(s,t))
 
 def add_rand_edge(G,exclude=None):
-  #add a uniformly random absent edge, never the edge `exclude`
+  """Add a uniformly random edge absent from G, never the edge exclude, and
+  return it as (min, max)."""
   n = G.number_of_nodes()
   while True:
     u = np.random.randint(n)
@@ -452,6 +519,7 @@ def add_rand_edge(G,exclude=None):
       return e
 
 def remove_rand_edge(G):
+  """Remove a uniformly random edge of G and return it as (min, max)."""
   edges = list(G.edges())
   (u,v) = edges[np.random.randint(len(edges))]
   G.remove_edge(u,v)
@@ -460,6 +528,11 @@ def remove_rand_edge(G):
 #This is the basic building function
 
 def topological_rewiring(net,l,T,max_dim=2):
+    """Topologically self-inhibiting rewiring on [0, T]: all edges of net are
+    present from time 0; at exponential intervals (mean l) an edge lying on a cycle is
+    removed (a random edge if there is no cycle) and a uniformly random absent edge is
+    added. Returns (graph, simplices, times) as ER_periodic does. See
+    generators.topological_rewiring."""
     sxs = []
     n = net.number_of_nodes()
     for i in range(n):
