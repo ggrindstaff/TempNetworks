@@ -1,10 +1,9 @@
-teneto
-dionysus
-scipy
 numpy
+scipy
+pandas
 matplotlib
 networkx
-itertools
-pandas
-random
-
+dionysus
+teneto
+# teneto 0.5.3 imports nilearn.input_data, which later nilearn releases removed
+nilearn<0.11
