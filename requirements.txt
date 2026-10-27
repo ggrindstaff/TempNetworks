@@ -1,10 +1,6 @@
-teneto
-dionysus
-scipy
 numpy
+scipy
+pandas
 matplotlib
 networkx
-itertools
-pandas
-random
-
+dionysus

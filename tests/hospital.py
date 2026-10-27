@@ -2,14 +2,9 @@
 
 import pandas as pd
 import numpy as np
-import networkx as nx
-import dionysus as d
-import itertools
 import matplotlib.pyplot as plt
-from tempnets.utils import timelist_to_ee_non_int, plot_diags
-from tempnets.topfunctions import graph_autocorrelation, top_autocorr, top_burstiness
-#from ..tempnets.utils import 
-#from ..tempnets.topfunctions import 
+import tempnets as tn
+from tempnets.topfunctions import top_burstiness
 from pathlib import Path
 
 current_dir = Path(__file__).resolve().parent
@@ -18,64 +13,42 @@ data_file_path = data_dir / 'detailed_list_of_contacts_Hospital.dat'
 
 hosp = pd.read_csv(data_file_path,delimiter = "\t",header=None)
 hosp.columns = ['t','i','j','type1','type2']
-hlist = hosp[['i','j','t']].values.tolist()
-edgelist = hosp[['i','j']].values.tolist()
-timespd = hosp.groupby(by=['i','j'])['t'].apply(list)
-G = nx.Graph(edgelist)
 
-"""time is in 20-sec intervals, so one day is 4320 time units."""
+"""Contacts are recorded in 20-second steps (t in seconds). We work in hours."""
 
-day=4320
-hour = 180
-minute = 3
-T = np.max(hosp['t'])
-spread = 2*hour
-all_times = list(range(0,T+20,20))
+step = 20/3600
+minute = 1/60
+hour = 1
+day = 24
+contacts = [(i,j,t/3600) for (i,j,t) in hosp[['i','j','t']].values.tolist()]
+#end of the last recorded step
+T = np.max(hosp['t'])/3600 + step
 
-"""We show that different buffer times result in the same topological statistics"""
+"""We show that different buffer times result in the same topological statistics.
+
+Each contact keeps its edge present for its own 20-second step plus the buffer. A
+triangle is present only at the times all three of its pairs are in contact at once,
+and is then kept for the same duration."""
 
 buffer_list = [minute,10*minute, hour, 4*hour, 10*hour, day, 2*day]
 buffer = ["1 minute","10 minutes", "1 hour", "4 hours", "10 hours", "24 hours", "48 hours"]
 
+#lag for the autocorrelation statistics: the spacing of 50 evenly spaced snapshots on [0, T]
+tau = T/49
+
 hosp_dgm = []
 hosp_graph_auto=[]
 for j in range(len(buffer_list)):
-  sxs = [[i] for i in G.nodes]
-  timelist = [list(range(0,T,20)) for i in G.nodes]
-  times = [[0,T] for i in G.nodes]
-  for a,b in G.edges:
-    if a < b:
-      sxs.append([a,b])
-    else:
-      sxs.append([b,a])
-    try:
-      temp = timespd[a,b]
-      timelist.append(temp)
-      times.append(timelist_to_ee_non_int(temp,all_times,buffer=buffer_list[j]))
-    except:
-      temp = timespd[b,a]
-      timelist.append(temp)
-      times.append(timelist_to_ee_non_int(temp,all_times,buffer=buffer_list[j]))
-
-  for sx in itertools.combinations(G.nodes,3):
-      boundary1 = list(itertools.combinations(sx,2))
-      if all([list(b) in sxs for b in boundary1]):
-        time = set(timespd[boundary1[0]])
-        for b in boundary1:
-          time =  set.intersection(time,set(timespd[b]))
-        if len(time)>0:
-          sxs.append(list(sx))
-          temp = sorted(list(time))
-          timelist.append(temp)
-          times.append(timelist_to_ee_non_int(temp,all_times,buffer=buffer_list[j]))
-
-  fil = d.Filtration(sxs)
-  zz,dgms,cell = d.zigzag_homology_persistence(fil,times)
-  hosp_graph_auto.append(graph_autocorrelation(G,times,np.linspace(0, T)))
+  duration = step + buffer_list[j]
+  net = tn.TemporalNetwork.from_contacts(contacts, duration, T=T)
+  cx = tn.TemporalComplex.from_contacts(contacts, duration, max_dim=2, T=T)
+  dgms = cx.persistence()
+  hosp_graph_auto.append(net.graph_autocorrelation_continuous(tau))
   hosp_dgm.append(dgms)
-  plot_diags(dgms,T/20,title = buffer[j],save='figs/'+buffer[j])
+  tn.plot_diags(dgms,T,title = buffer[j],save='figs/'+buffer[j])
 
-auto_array = [top_autocorr(hosp_dgm[i],np.linspace(0, T),format='dionysus') for i in range(7)]
+auto_array = [tn.top_autocorr_continuous(hosp_dgm[i],tau,T) for i in range(7)]
+plt.figure()
 plt.plot(auto_array)
 plt.ylim(0,1)
 plt.xticks([0,1,2,3,4,5,6],labels=buffer)
@@ -83,6 +56,7 @@ plt.ylabel("Topological persistence autocorrelation")
 plt.xlabel("Buffer window")
 plt.savefig('figs/hosp_top_auto.png')
 
+plt.figure()
 plt.plot(hosp_graph_auto)
 plt.ylim(-1,1)
 plt.xticks([0,1,2,3,4,5,6],labels=buffer)
@@ -91,6 +65,7 @@ plt.xlabel("Buffer window")
 plt.savefig('figs/hosp_graph_auto.png')
 
 burst = [top_burstiness(dg,T) for dg in hosp_dgm]
+plt.figure()
 plt.plot(np.transpose(burst))
 plt.xticks(range(6),labels=["0-birth", "0-death","1-birth","1-death","2-birth","2-death"])
 plt.legend(labels=buffer)

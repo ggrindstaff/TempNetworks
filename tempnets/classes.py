@@ -1,3 +1,9 @@
+"""Legacy: TemporalGraphComplex, an earlier object-oriented interface.
+
+It needs bats-tda (pip install "tempnets[extras]"), which does not build on
+current Python versions. tempnets.TemporalNetwork and tempnets.generators cover
+the same ground.
+"""
 import networkx as nx
 import bats
 import numpy as np
@@ -6,6 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib import rc
 import itertools
+from .utils import intersection, plot_diags, zigzag_persistence
 rc('animation', html='jshtml')
 
 class TemporalGraphComplex:
@@ -42,6 +49,7 @@ class TemporalGraphComplex:
     def set_periodic(self,freq=8,l=2):
       self.temporal_pattern = 'periodic'
       self.freq = freq
+      self.l = l
 
     def set_poisson(self,l=2):
       self.temporal_pattern = 'poisson'
@@ -76,14 +84,14 @@ class TemporalGraphComplex:
         return t
 
     def poisson_intervals(self):
-      start = int(np.random.exponential(self.l)*1000)/1000
-      dur = int(np.random.exponential(self.l)*1000)/1000
+      start = np.random.exponential(self.l)
+      dur = np.random.exponential(self.l)
       t = [(start,start+dur)]
       while True:
-            newstart = t[-1][1] + int(np.random.exponential(self.l)*1000)/1000
+            newstart = t[-1][1] + np.random.exponential(self.l)
             if newstart >= self.T: break
         #    dur = np.random.exponential(l)
-            dur = int(np.random.exponential(self.l)*1000)/1000
+            dur = np.random.exponential(self.l)
             if newstart + dur <self.T:
               t.append((newstart,newstart + dur))
             #      print((newstart,newstart+dur))
@@ -149,24 +157,7 @@ class TemporalGraphComplex:
         return H
 
     def intersection(self,all_times):
-        list1 = all_times[0]
-        inter_times=[]
-        for (t1,t2) in list1:
-            (u,v) = (t1,t2)
-            inter_bool = [False for n in range(len(all_times)-1)]
-            for i in range(1,len(all_times)):
-                for (s1,s2) in all_times[i]:
-                    if s1<=u<=s2:
-                      inter_bool[i-1] = True
-                      if v > s2:
-                          v = s2
-                    if s1<=v<=s2:
-                      inter_bool[i-1] = True
-                      if u < s1:
-                          u = s1
-            if all(inter_bool) and u!=v:
-                inter_times.append((u,v))
-        return inter_times
+        return intersection(all_times)
 
     def add_n_simplices(self,n=2):
         m = self.X.ncells(0)
@@ -204,7 +195,7 @@ class TemporalGraphComplex:
 
     def next_time(self):
       if self.temporal_pattern=='poisson':
-        return int(np.random.exponential(self.l)*1000)/1000
+        return np.random.exponential(self.l)
 
     def WS_exponential(self):
         self.G = nx.watts_strogatz_graph(self.n,self.k,self.p)
@@ -226,7 +217,7 @@ class TemporalGraphComplex:
           self.times[togo][-1] = (recent[0],t)
           stay = togo[np.random.randint(2)]
           new_neighbor = np.random.randint(self.n)
-          while new_neighbor == stay or (stay,new_neighbor) in G.edges() or (new_neighbor,stay) in G.edges():
+          while new_neighbor == stay or (stay,new_neighbor) in G.edges() or (new_neighbor,stay) in G.edges() or (min(stay,new_neighbor),max(stay,new_neighbor))==togo:
             new_neighbor = np.random.randint(self.n)
           G.add_edge(stay,new_neighbor)
           u = min(stay,new_neighbor)
@@ -237,7 +228,7 @@ class TemporalGraphComplex:
             self.times[(u,v)].append((t,self.T))
           else:
             self.times[(u,v)] =[(t,self.T)]
-          t = self.next_time()
+          t = t + self.next_time()
 
         for edge in self.times.keys():
           for (t0,t1) in self.times[edge]:
@@ -246,8 +237,8 @@ class TemporalGraphComplex:
 
     def dionysus_ph(self):
       dtimes = self.to_dionysus_format()
-      zz,dgms,cell=d.zigzag_homology_persistence(self.Y,dtimes)
-      self.dgms = []
+      zz,dgms,cell=zigzag_persistence(self.Y,dtimes)
+      self.dgms = dgms
       self.birth = []
       self.death = []
       self.all_finite_pers = []
@@ -276,22 +267,4 @@ class TemporalGraphComplex:
         self.bats_ph()
 
     def plot_homology(self):
-      colors = ['blue','orange','purple','red','gold','lime']
-      plotmin = np.min([np.min(self.birth[i]) for i in range(len(self.birth))])
-      plotmax= np.max([np.max(self.death[i]) for i in range(len(self.death))])
-      rot_plotmax = np.max([np.max(self.all_finite_pers[i]) for i in range(len(self.all_finite_pers))])
-      eps = 0.1
-
-      plt.plot([plotmin-eps,plotmax+eps], [plotmin-eps,plotmax+eps], 'go-', linewidth=2, markersize=0)
-      plt.xlim(plotmin-eps,plotmax+eps)
-      plt.ylim(plotmin-eps,plotmax+eps+1)
-      plt.plot([plotmin-eps,plotmax+eps], [plotmax+2*eps,plotmax+2*eps], '--', linewidth=2, markersize=0)
-      for i in range(len(self.birth)):
-        plt.scatter(self.birth[i],self.death[i],color=colors[i],s=10*(i+1),alpha = 0.8,label=i)
-      plt.text(-2,self.T-2*eps, "$\infty$",size=15)
-      plt.yticks(np.linspace(0, self.T-5, 8))
-      plt.legend()
-      plt.title("Zigzag Persistence Diagram")
-      plt.xlabel("Birth time")
-      plt.ylabel("Death time")
-      plt.show()
+      plot_diags(self.dgms,self.T)
