@@ -9,8 +9,8 @@ def autocorrelation(gamma,lag=1):
   denom=0
   for t in range(len(gamma)-lag):
     num = num + (gamma[t]-gamma_bar)*(gamma[t+lag]-gamma_bar)
+  for t in range(len(gamma)):
     denom = denom + (gamma[t]-gamma_bar)**2
-  denom = denom + (gamma[-lag]-gamma_bar)**2
   if denom == 0:
     return 0
   else:
@@ -74,9 +74,9 @@ def top_stationarity(dgms,times):
   for x in range(runs):
     t.append(np.random.rand()*T)
     w = np.random.exponential(scale=1)
-    if t[x]+w > 40:
-      w = 40-t[x]
-    corr = dgm_correlation(dgms,t[x],t[x]+w,format='dionysus')
+    if t[x]+w > T:
+      w = T-t[x]
+    corr = dgm_correlation(dgms,t[x],t[x]+w,format=format)
     dac.append(corr)
 
   return np.cov(t,dac)[0,1]
