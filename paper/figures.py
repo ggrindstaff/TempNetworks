@@ -66,25 +66,36 @@ def make_model(name, n, T, seed):
     return tn.generators.poisson(n, T, DENSITY, seed=seed)
   return getattr(tn.generators, name)(n, T, DENSITY, RATE, seed=seed)
 
-def draw_diagram(ax, dgms, T, legend=True):
-  #persistence diagram; deaths at or after T on the infinity line
-  inf = 1.1 * T
-  ax.plot([0, T], [0, T], color="0.6", lw=0.7, zorder=0)
+def finite_persistence_max(dgms, T):
+  #largest death - birth among classes that die before T
+  pers = [d[:, 1] - d[:, 0] for d in as_arrays(dgms) if len(d) > 0]
+  pers = np.concatenate(pers + [np.zeros(0)])
+  deaths = np.concatenate([d[:, 1] for d in as_arrays(dgms) if len(d) > 0] + [np.zeros(0)])
+  finite = pers[deaths < T]
+  return finite.max() if len(finite) > 0 else 1.0
+
+def draw_diagram(ax, dgms, T, legend=True, pmax=None):
+  #rotated persistence diagram: birth against persistence (death - birth). Classes
+  #still alive at T have unknown persistence and are drawn on the infinity line.
+  #pmax sets the persistence axis, so several diagrams can share a scale.
+  if pmax is None:
+    pmax = finite_persistence_max(dgms, T)
+  inf = 1.15 * pmax
   ax.axhline(inf, color="0.6", lw=0.7, ls="--", zorder=0)
   for dim, d in enumerate(as_arrays(dgms)):
     if len(d) > 0:
-      deaths = np.where(d[:, 1] >= T, inf, d[:, 1])
-      ax.scatter(d[:, 0], deaths, s=5, color=DIM_COLORS[dim % 3], alpha=0.6, lw=0, label="$H_%d$" % dim)
+      pers = np.where(d[:, 1] >= T, inf, d[:, 1] - d[:, 0])
+      ax.scatter(d[:, 0], pers, s=5, color=DIM_COLORS[dim % 3], alpha=0.6, lw=0, label="$H_%d$" % dim)
   ax.set_xlim(-0.03 * T, 1.03 * T)
-  ax.set_ylim(-0.03 * T, 1.16 * T)
-  ticks = [0, T / 2, T]
-  ax.set_xticks(ticks)
-  ax.set_yticks(ticks + [inf])
-  ax.set_yticklabels(["%g" % t for t in ticks] + [r"$\infty$"])
+  ax.set_ylim(-0.04 * pmax, 1.25 * pmax)
+  ax.set_xticks([0, T / 2, T])
+  yticks = [y for y in ax.yaxis.get_major_locator().tick_values(0, pmax) if 0 <= y <= pmax]
+  ax.set_yticks(yticks + [inf])
+  ax.set_yticklabels(["%g" % y for y in yticks] + [r"$\infty$"])
   ax.set_xlabel("birth")
-  ax.set_ylabel("death")
+  ax.set_ylabel("persistence")
   if legend:
-    ax.legend(loc="lower right", frameon=False, handletextpad=0.1, markerscale=2)
+    ax.legend(loc="upper right", bbox_to_anchor=(1, 0.92), frameon=False, handletextpad=0.1, markerscale=2)
 
 def draw_snapshot(ax, net, t, pos):
   #the clique complex at time t: edges, with triangles shaded
@@ -104,10 +115,13 @@ def fig4():
   n, T, seed = 15, 40, 3
   fig = plt.figure(figsize=(TEXTWIDTH, 8.2))
   subfigs = fig.subfigures(3, 2, hspace=0.04, wspace=0.04)
+  nets = [make_model(name, n, T, seed) for name, _ in MODELS]
+  all_dgms = [net.flag(max_dim=2).persistence() for net in nets]
+  #one persistence scale for all six diagrams
+  pmax = max(finite_persistence_max(d, T) for d in all_dgms)
   for k, (name, label) in enumerate(MODELS):
     sub = subfigs.ravel()[k]
-    net = make_model(name, n, T, seed)
-    dgms = net.flag(max_dim=2).persistence()
+    net, dgms = nets[k], all_dgms[k]
     density, rate = net.stats()
     sub.suptitle("%s\n" % label + r"$\it{density\ %.2f,\ new\ edge\ rate\ %.2f}$" % (density, rate),
                  fontsize=8, y=1.0)
@@ -116,7 +130,7 @@ def fig4():
     pos = nx.circular_layout(sorted(net.nodes))
     for i, t in enumerate([T / 4, T / 2, 3 * T / 4]):
       draw_snapshot(sub.add_subplot(gs[0, i]), net, t, pos)
-    draw_diagram(sub.add_subplot(gs[1, :]), dgms, T, legend=(k == 0))
+    draw_diagram(sub.add_subplot(gs[1, :]), dgms, T, legend=(k == 0), pmax=pmax)
   save(fig, "fig4_models")
 
 
