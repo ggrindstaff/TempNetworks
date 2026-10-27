@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 import itertools
-import pandas as pd
 from bisect import bisect_right
 #import persim
 np.random.seed(10)
@@ -177,20 +176,20 @@ def check_simplicial(sxs,timebank):
       else: return False
   return True
 
-"""converts between Temporal Network object and zigzag simplical complex"""
-def temp_net_to_clique_clx(temp_net,inter='union',max_dim=2):
-  T = temp_net.T
-  n = temp_net.N
+"""converts between a discrete temporal network (n x n x T array) and zigzag simplical complex"""
+def temp_net_to_clique_clx(arr,inter='union',max_dim=2):
+  #arr is an n x n x T array (see discrete.py); arr[i,j,t] or arr[j,i,t] nonzero
+  #means i and j are joined at time step t
+  n = arr.shape[0]
+  T = arr.shape[2]
   simplices = [[i] for i in range(n)]
   intervals = {}
   times = [[0,T] for i in range(n)]
   for i in range(n):
     for j in range(i):
-      ij = temp_net.get_network_when(i=i,j=j)
-      ji = temp_net.get_network_when(i=j,j=i)
-      if (ij.size+ji.size)!=0:
+      bank = [int(t) for t in np.nonzero((arr[i,j,:]!=0) | (arr[j,i,:]!=0))[0]]
+      if len(bank)>0:
         simplices.append([j,i])
-        bank = sorted(set(ij['t'].values) | set(ji['t'].values))
         ee = time_list_to_ee(bank,T,inter)
         times.append(ee)
         if len(ee)%2==1:
@@ -388,7 +387,7 @@ def plot_diags(dgms,T,rotate=False,title="",save=""):
     plt.show()
     plt.close(fig)
 
-def teneto_homology(input):
+def array_homology(input):
     sxs, times = temp_net_to_clique_clx(input)
     #simplices = [sxs]
     #eelist = [times]

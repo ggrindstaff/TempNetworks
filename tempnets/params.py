@@ -20,11 +20,12 @@ def edge_lifetime(dens,rate):
   return dens/rate
 
 def binomial_params(dens,rate):
-  """prob=[P(absent -> present), P(present stays present)] for teneto's rand_binomial.
+  """(birth, stay) for discrete.rand_binomial: P(absent -> present) and
+  P(present stays present).
 
   Each node pair is a two-state Markov chain; at stationarity
   P(present) = dens and P(absent)*P(absent -> present) = rate.
-  Pass initialize=dens as well so the network starts at stationarity.
+  Pass init=dens as well so the network starts at stationarity.
   """
   birth = rate/(1-dens)
   death = rate/dens
@@ -32,21 +33,15 @@ def binomial_params(dens,rate):
     raise ValueError("rand_binomial needs rate <= min(dens, 1-dens)")
   return [birth, 1-death]
 
-def poisson_params(dens,T):
-  """(ncontacts, lam) for teneto's rand_poisson.
+def poisson_params(dens):
+  """lam for discrete.rand_poisson.
 
   Contacts last one time step and the gaps between them are Poisson(lam);
   zero gaps merge contacts, so the density is (1-exp(-lam))/lam. This model
   has no separate duration parameter, so its rate of new edges cannot be set
   independently of dens.
-
-  rand_poisson makes the network as long as the longest pair's contact
-  sequence, leaving the other pairs empty at the end; ncontacts is large
-  enough that every pair lasts past T, so crop the result to its first T steps.
   """
-  lam = brentq(lambda x: (1-exp(-x))/x - dens, 1e-9, 1e6)
-  ncontacts = int(np.ceil((T + 6*np.sqrt(T) + 6)/lam))
-  return ncontacts, lam
+  return brentq(lambda x: (1-exp(-x))/x - dens, 1e-9, 1e6)
 
 def er_periodic_params(dens,rate,p):
   """(freq, l) for ER_periodic with edge probability p.

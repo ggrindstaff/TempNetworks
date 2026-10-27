@@ -2,10 +2,8 @@
 from .utils import *
 #level_set,plot_diags,temp_net_to_clique_clx, ER_periodic, to_ee, is_in, exponential_rewiring, is_in_ee,intersection
 from .topfunctions import graph_autocorrelation, top_autocorr, burstiness, pers_burstiness
-from .teneto_utils import sun_array, to_array
+from .discrete import sun_array, rand_binomial, rand_poisson
 from .params import binomial_params, poisson_params, er_periodic_params, ws_params, rewiring_interval, interval_stats, array_stats
-import teneto
-from teneto import TemporalNetwork
 import dionysus as d
 #from bats.visualization.plotly import ScatterVisualization
 import scipy.spatial.distance as distance
@@ -48,17 +46,16 @@ def report(name,stats):
 
 
 #discrete
-tbin = TemporalNetwork()
-tbin.generatenetwork('rand_binomial',size=(n,T), prob=binomial_params(dens,new_edge_rate), initialize=dens)
-report("Binomial",array_stats(to_array(tbin)))
-dgmsbin = teneto_homology(tbin)
+birth, stay = binomial_params(dens,new_edge_rate)
+tbin = rand_binomial(n,T,birth,stay,init=dens)
+report("Binomial",array_stats(tbin))
+dgmsbin = array_homology(tbin)
 diags.append(dgmsbin)
 
 #contacts last one time step, so only the density can be matched (see poisson_params)
-ncontacts, lam = poisson_params(dens,T)
-tpoiss = TemporalNetwork(from_array=teneto.generatenetwork.rand_poisson(nnodes=n,ncontacts=ncontacts,lam=lam)[:,:,:T])
-report("Poisson",array_stats(to_array(tpoiss)))
-dgmspoiss = teneto_homology(tpoiss)
+tpoiss = rand_poisson(n,T,poisson_params(dens))
+report("Poisson",array_stats(tpoiss))
+dgmspoiss = array_homology(tpoiss)
 diags.append(dgmspoiss)
 
 
@@ -102,7 +99,7 @@ l = n/r
 #rounds
 #k = int(T/l)
 #T = int(l * k)
-tsun = TemporalNetwork(from_array=sun_array(n,T,l))
+tsun = sun_array(n,T,l)
 sxsSun, timesSun = temp_net_to_clique_clx(tsun)
 zzSun,dgmsSun,cell= d.zigzag_homology_persistence(d.Filtration(sxsSun),timesSun)
 diags.append(dgmsSun)
@@ -123,8 +120,8 @@ diags.append(dgmsTSI)
 
 #Plotting 
 
-plot_diags(dgmsbin,tbin.T,rotate=False,title='Binary network',save='figs/tbin_diags')
-plot_diags(dgmspoiss,tpoiss.T,rotate=False,title = 'Poisson network', save='figs/tpoiss_diags')
+plot_diags(dgmsbin,T,rotate=False,title='Binary network',save='figs/tbin_diags')
+plot_diags(dgmspoiss,T,rotate=False,title = 'Poisson network', save='figs/tpoiss_diags')
 plot_diags(dgmsER,T,rotate=False,save = 'figs/ER_diags')
 plot_diags(dgmsWS,T,save = 'figs/WS_diags')
 plot_diags(dgmsSun,T,save = './figs/sun_diag')

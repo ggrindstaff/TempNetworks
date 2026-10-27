@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     description="Zigzag persistent homology of temporal networks",
     packages=find_packages(include=["tempnets", "tempnets.*"]),
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=[
         "numpy",
         "scipy",
@@ -13,8 +13,6 @@ setup(
         "matplotlib",
         "networkx",
         "dionysus",
-        "teneto",
-        "nilearn<0.11",
     ],
     extras_require={
         # TemporalGraphComplex (classes.py) and tests/modelcomparison.py

@@ -120,26 +120,22 @@ def test_autocorrelation():
     assert autocorrelation(g, lag) == pytest.approx(num / denom)
 
 
-class FakeTemporalNetwork:
-  #the parts of teneto's TemporalNetwork that temp_net_to_clique_clx uses
-  def __init__(self, contacts, N, T):
-    self.contacts = contacts
-    self.N = N
-    self.T = T
-
-  def get_network_when(self, i, j):
-    import pandas as pd
-    return pd.DataFrame({'i': i, 'j': j, 't': [t for (a, b, t) in self.contacts if (a, b) == (i, j)]})
+def contacts_array(contacts, n, T):
+  arr = np.zeros((n, n, T))
+  for (i, j, t) in contacts:
+    arr[i, j, t] = 1
+  return arr
 
 def test_temp_net_to_clique_clx():
   #triangle 0-1-2 with (0,2) only at t=4 and (1,2) only at t=5: the edges touch at
   #t=4.5 but are never on together, so there must be no triangle
   contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (1, 2, 5)]
-  sxs, times = temp_net_to_clique_clx(FakeTemporalNetwork(contacts, 3, 10))
+  sxs, times = temp_net_to_clique_clx(contacts_array(contacts, 3, 10))
   assert [0, 1, 2] not in sxs
   #now (1,2) overlaps (0,2): triangle on exactly the common interval
-  contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (0, 2, 5), (1, 2, 5)]
-  sxs, times = temp_net_to_clique_clx(FakeTemporalNetwork(contacts, 3, 10))
+  #(stored as (2,1) to check both directions are read)
+  contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (0, 2, 5), (2, 1, 5)]
+  sxs, times = temp_net_to_clique_clx(contacts_array(contacts, 3, 10))
   assert times[sxs.index([0, 1, 2])] == [4.5, 5.5]
   assert all(strictly_increasing(ee) for ee in times)
   d.zigzag_homology_persistence(d.Filtration(sxs), times)
