@@ -81,9 +81,10 @@ def test_stats_accept_both_diagram_formats():
   zz, raw, cells = zigzag_persistence(sxs, dtimes)
   arrays = cx.persistence()
   s = np.linspace(0, 40, 50)
-  assert top_autocorr(arrays, s) == pytest.approx(top_autocorr(raw, s, format='dionysus'))
-  assert pers_burstiness(arrays, 40) == pytest.approx(pers_burstiness(raw, 40), nan_ok=True)
-  assert top_burstiness(arrays, 40) == pytest.approx(top_burstiness(raw, 40), nan_ok=True)
+  assert top_autocorr(arrays, s) == pytest.approx(top_autocorr(raw, s, format='dionysus'), rel=1e-4)
+  assert pers_burstiness(arrays, 40) == pytest.approx(pers_burstiness(raw, 40), rel=1e-4, nan_ok=True)
+  #arrays carry exact times, dionysus float32 ones
+  assert top_burstiness(arrays, 40) == pytest.approx(top_burstiness(raw, 40), rel=1e-4, nan_ok=True)
 
 
 @pytest.mark.parametrize("model", ["binomial", "er_periodic", "ws_rewiring", "topological_rewiring"])
@@ -102,3 +103,13 @@ def test_generators_match_targets_and_seed(model):
 def test_poisson_generator():
   density, rate = tn.generators.poisson(30, 200, 0.3, seed=0).stats()
   assert density == pytest.approx(0.3, rel=0.05)
+
+def test_persistence_reports_exact_times():
+  #96.57 hours is not a float32; deaths at T must still equal T
+  T = 347660 / 3600
+  net = tn.TemporalNetwork.from_intervals({(0, 1): [(1 / 3, 50.1)], (1, 2): [(2.7, T)]}, T)
+  dgms = net.flag().persistence()
+  assert T in dgms[0][:, 1].tolist()
+  #every reported time is exactly one of the event times
+  assert set(dgms[0].ravel().tolist()) <= {0.0, 1 / 3, 2.7, 50.1, T}
+  assert 50.1 in dgms[0][:, 0].tolist()

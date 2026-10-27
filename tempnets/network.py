@@ -171,6 +171,37 @@ class TemporalComplex:
     #faces before cofaces, as dionysus requires
     self.intervals = dict(sorted(intervals.items(), key=lambda kv: len(kv[0])))
 
+  @classmethod
+  def from_contacts(cls, contacts, duration, max_dim=2, T=None, nodes=()):
+    """Clique complex of contact data in which a clique is present only at the recorded
+    times when all of its pairs are in contact simultaneously (the same time t). Each
+    such time keeps the simplex present on [t, t + duration], as
+    TemporalNetwork.from_contacts does for edges; T defaults to the last contact's end.
+
+    This differs from TemporalNetwork.from_contacts(...).flag(), where a clique is
+    present whenever its (buffered) edges overlap.
+    contacts: iterable of (u, v, t)."""
+    times = {}
+    for (u, v, t) in contacts:
+      times.setdefault((min(u, v), max(u, v)), set()).add(t)
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(times.keys())
+    if T is None:
+      T = max(max(ts) for ts in times.values()) + duration
+    cx = {(v,): [(0.0, float(T))] for v in sorted(G.nodes)}
+    for clique in nx.enumerate_all_cliques(G):
+      if len(clique) > max_dim + 1:
+        break
+      if len(clique) == 1:
+        continue
+      sx = tuple(sorted(clique))
+      together = set.intersection(*[times[b] for b in itertools.combinations(sx, 2)])
+      ints = normalize_intervals([(t, t + duration) for t in together], T)
+      if len(ints) > 0:
+        cx[sx] = ints
+    return cls(sorted(G.nodes), cx, T)
+
   @property
   def simplices(self):
     return list(self.intervals.keys())
@@ -194,7 +225,13 @@ class TemporalComplex:
     """Zigzag persistence diagrams: one array of (birth, death) rows per dimension."""
     sxs, dtimes = self.to_dionysus()
     zz, dgms, cells = zigzag_persistence(sxs, dtimes)
-    out = [np.array([(p.birth, p.death) for p in dgm], dtype=float).reshape(-1, 2) for dgm in dgms]
+    #dionysus reports float32 times; map them back to the exact event times, so that
+    #e.g. a death at T compares equal to T
+    exact = {float(np.float32(x)): x for ee in dtimes for x in ee}
+    def restore(x):
+      return exact.get(float(x), float(x))
+    out = [np.array([(restore(p.birth), restore(p.death)) for p in dgm], dtype=float).reshape(-1, 2)
+           for dgm in dgms]
     while len(out) < self.dim + 1:
       out.append(np.zeros((0, 2)))
     return out
