@@ -155,3 +155,28 @@ def test_zigzag_persistence_with_sliver_interval():
   times = [[0, 100], [0, 100], [50.0, 50.0 + 1e-7]]
   zz, dgms, cells = zigzag_persistence(sxs, times)
   assert sorted((p.birth, p.death) for p in dgms[0]) == [(0, 100), (0, 100)]
+
+
+def test_top_autocorr_matches_pointwise_definition():
+  from tempnets.topfunctions import top_autocorr, dgm_correlation
+  rng = np.random.default_rng(0)
+  for trial in range(20):
+    dgms = []
+    for dim in range(3):
+      b = rng.integers(0, 20, size=rng.integers(0, 30)).astype(float)
+      d = b + rng.integers(0, 10, size=len(b))
+      d[rng.random(len(b)) < 0.2] = float('inf')
+      dgms.append(list(zip(b, d)))
+    #integer snapshots hit births and deaths exactly, testing the closed boundaries
+    for snapshots in (np.arange(0, 25), np.linspace(0, 25, 40)):
+      gamma = [dgm_correlation(dgms, snapshots[i], snapshots[i + 1]) for i in range(len(snapshots) - 1)]
+      for lag in (1, 2):
+        assert top_autocorr(dgms, snapshots, lag) == pytest.approx(autocorrelation(gamma, lag))
+  assert top_autocorr([[], []], np.arange(5)) == 0
+
+def test_top_autocorr_dionysus_format():
+  from tempnets.topfunctions import top_autocorr
+  dgms = [[Point(0, 5), Point(1, float('inf'))], [], [Point(2, 3)]]
+  tuples = [[(p.birth, p.death) for p in dgm] for dgm in dgms]
+  s = np.linspace(0, 10, 21)
+  assert top_autocorr(dgms, s, format='dionysus') == top_autocorr(tuples, s)

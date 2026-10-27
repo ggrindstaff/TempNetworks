@@ -55,9 +55,28 @@ def dgm_correlation(dgms,t1,t2,format='tuples'):
     return 0
   else: return f12/np.sqrt(f1*f2)
 
+def dgm_points(dgms,format='tuples'):
+  #births and deaths of the points of all dimensions, as two arrays
+  if format=='dionysus':
+    pts = [(p.birth,p.death) for dgm in dgms for p in dgm]
+  else:
+    pts = [(b,d) for dgm in dgms for (b,d) in dgm]
+  if len(pts)==0:
+    return np.zeros(0),np.zeros(0)
+  pts = np.array(pts,dtype=float)
+  return pts[:,0],pts[:,1]
+
 def top_autocorr(dgms,snapshots,lag=1,format='tuples'):
-  gamma = [dgm_correlation(dgms,snapshots[i],snapshots[i+1],format) for i in range(len(snapshots)-1)]
-  return autocorrelation(gamma,lag)
+  #dgm_correlation between consecutive snapshots, computed for all snapshots at once
+  birth,death = dgm_points(dgms,format)
+  s = np.asarray(snapshots,dtype=float)
+  #alive[k,i]: point k is alive at snapshots[i]
+  alive = (birth[:,None]<=s[None,:]) & (s[None,:]<=death[:,None])
+  f = alive.sum(axis=0)
+  f12 = (alive[:,:-1] & alive[:,1:]).sum(axis=0)
+  f1f2 = f[:-1]*f[1:]
+  gamma = np.where(f1f2==0, 0, f12/np.sqrt(np.maximum(f1f2,1)))
+  return autocorrelation(list(gamma),lag)
 
 def top_stationarity(dgms,times):
   if type(times)==dict:
