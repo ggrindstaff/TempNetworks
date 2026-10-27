@@ -27,15 +27,28 @@ def rand_binomial(n,T,birth,stay,init=0):
 
 def rand_poisson(n,T,lam):
   """Discrete-time network where each node pair has one-step contacts separated
-  by Poisson(lam) gaps (a gap of 0 merges two contacts). Returns an n x n x T
-  array. See generators.poisson."""
+  by Poisson(lam) gaps (a gap of 0 merges two contacts), started at stationarity:
+  the gaps between distinct contacts are Poisson(lam) conditioned to be >= 1, and
+  the first contact time is drawn from the stationary forward-recurrence
+  distribution P(first = r) = P(gap > r)/E[gap]. Returns an n x n x T array.
+  See generators.poisson."""
+  from scipy.stats import poisson
   m = n*(n-1)//2
+  #gap between distinct contacts: Poisson(lam) given >= 1
+  rmax = int(lam + 12*np.sqrt(lam) + 12)
+  g = np.arange(1, rmax+1)
+  pgap = poisson.pmf(g, lam)/(1 - np.exp(-lam))
+  tail = np.clip(1 - np.concatenate([[0], np.cumsum(pgap)])[:rmax], 0, None)
+  first = tail/tail.sum()
   x = np.zeros(shape=(m,T),dtype=bool)
   for k in range(m):
-    t = np.random.poisson(lam)
+    t = np.random.choice(rmax, p=first)
     while t < T:
       x[k,t] = True
-      t = t + np.random.poisson(lam)
+      gap = 0
+      while gap == 0:
+        gap = np.random.poisson(lam)
+      t = t + gap
   return pairs_to_array(x,n)
 
 def to_temp_net(net,times,w):

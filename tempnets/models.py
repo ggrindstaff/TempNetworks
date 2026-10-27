@@ -1,6 +1,7 @@
 """Experiments on the random models (an experiment script, not a library module).
 
-Generates each model with T = 100, n = 40, density 0.3 and new-edge rate 0.1,
+Generates each model with T = 100, n = 40, density 2/39 (average degree 2) and
+new-edge rate density/3 (edges last 3 time units on average),
 prints the density and rate each achieves, computes their zigzag persistence and
 saves the diagrams to figs/. It then compares graph and topological
 autocorrelation, and burstiness, over 50 ER periodic networks
@@ -37,13 +38,16 @@ max_dim=2
 #Each random model is specified by T, the average density and the average rate of
 #new edge generation; its own parameters are computed (tempnets/params.py) to match.
 
-#average density: expected fraction of the (n choose 2) node pairs that are edges at each time
-dens = 0.3
+#average density: expected fraction of the (n choose 2) node pairs that are edges at each time.
+#Sparse (average degree 2, a Watts-Strogatz ring with k = 2), where the topologically
+#self-inhibiting model suppresses cycles; at higher densities most edges lie in triangles
+#and removing graph-cycle edges no longer reduces the homology of the clique complex.
+dens = 2/(n-1)
 
 #average rate of new edge generation: expected number of new edges per node pair per unit
 #time, i.e. new_edge_rate*(n choose 2) new edges per time step. Edges then last
-#dens/new_edge_rate time steps on average.
-new_edge_rate = 0.1
+#dens/new_edge_rate time steps on average (3 here).
+new_edge_rate = dens/3
 
 #store results
 diags = []

@@ -179,3 +179,10 @@ def test_union_protocol_lets_a_cycle_persist_across_steps():
   assert (dgms[0][:, 0] < 1).all()
   with pytest.raises(ValueError):
     tn.TemporalNetwork.from_array(arr, overlap=0)
+
+def test_poisson_generator_is_stationary_when_sparse():
+  #with a long mean gap, every pair must not wait a full gap for its first contact
+  arr = tn.generators.poisson(30, 120, 0.05, seed=2).to_array()
+  per_step = arr.sum(axis=(0, 1)) / 2 / (30 * 29 / 2)
+  assert per_step[:20].mean() == pytest.approx(0.05, rel=0.25)
+  assert per_step.mean() == pytest.approx(0.05, rel=0.1)

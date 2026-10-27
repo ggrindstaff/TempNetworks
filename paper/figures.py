@@ -38,7 +38,11 @@ MODELS = [  # (generator name, label)
   ("sun", "Periodic sun"),
 ]
 MODEL_COLORS = dict(zip([m for m, _ in MODELS], ["#4c72b0", "#55a868", "#c44e52", "#8172b2", "#ccb974", "#222222"]))
-DENSITY, RATE = 0.3, 0.1
+#sparse: average degree 2 at n = 40 (a Watts-Strogatz ring with k = 2), where the
+#topologically self-inhibiting model suppresses cycles; edges last 3 time units on average
+N_MODELS = 40
+DENSITY = 2 / (N_MODELS - 1)
+RATE = DENSITY / 3
 
 plt.rcParams.update({"font.size": 8, "axes.titlesize": 8, "axes.labelsize": 8, "legend.fontsize": 7,
                      "xtick.labelsize": 7, "ytick.labelsize": 7, "axes.spines.top": False,
@@ -96,7 +100,9 @@ def draw_diagram(ax, dgms, T, legend=True, pmax=None):
   ax.set_xlabel("birth")
   ax.set_ylabel("persistence")
   if legend:
-    ax.legend(loc="upper right", bbox_to_anchor=(1, 0.92), frameon=False, handletextpad=0.1, markerscale=2)
+    handles = [Line2D([], [], ls="", marker="o", markersize=3, color=DIM_COLORS[i], label="$H_%d$" % i)
+               for i in range(3)]
+    ax.legend(handles=handles, loc="upper right", bbox_to_anchor=(1, 0.92), frameon=False, handletextpad=0.1)
 
 def draw_snapshot(ax, net, t, pos):
   #the clique complex at time t: edges, with triangles shaded
@@ -104,7 +110,7 @@ def draw_snapshot(ax, net, t, pos):
   for tri in (c for c in nx.enumerate_all_cliques(G) if len(c) == 3):
     ax.fill(*zip(*[pos[v] for v in tri]), color="0.75", alpha=0.25, lw=0)
   nx.draw_networkx_edges(G, pos, ax=ax, width=0.5, edge_color="0.25")
-  nx.draw_networkx_nodes(G, pos, ax=ax, node_size=6, node_color="0.1")
+  nx.draw_networkx_nodes(G, pos, ax=ax, node_size=2, node_color="0.1")
   ax.set_title("t = %g" % t, pad=1)
   ax.set_aspect("equal")
   ax.axis("off")
@@ -113,7 +119,7 @@ def draw_snapshot(ax, net, t, pos):
 def fig4():
   """The six models at the same density and rate: snapshots of the clique complex and
   the persistence diagram."""
-  n, T, seed = 15, 40, 3
+  n, T, seed = N_MODELS, 40, 3
   fig = plt.figure(figsize=(TEXTWIDTH, 8.2))
   subfigs = fig.subfigures(3, 2, hspace=0.04, wspace=0.04)
   nets = [make_model(name, n, T, seed) for name, _ in MODELS]
@@ -144,7 +150,7 @@ def fig6_run(args):
 
 def fig6():
   """Topological vs graph autocorrelation across the models."""
-  n, T, runs = 40, 40, 30
+  n, T, runs = N_MODELS, 40, 30
   tau = T / (T - 1)
   def compute():
     tasks = [(name, seed, n, T, tau) for name, _ in MODELS

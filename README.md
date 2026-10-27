@@ -83,10 +83,10 @@ parameters are computed from them (`tempnets/params.py`):
 | Generator | Model | Parameters from density and rate |
 |---|---|---|
 | `binomial(n, T, density, rate)` | discrete time; each pair is a two-state Markov chain | P(absent → present) = rate/(1 − density), P(present → absent) = rate/density; started at stationarity. Needs rate ≤ min(density, 1 − density). |
-| `poisson(n, T, density)` | discrete time; one-step contacts separated by Poisson(λ) gaps | λ solves (1 − e^(−λ))/λ = density. Contacts last one step, so the rate cannot be chosen. |
+| `poisson(n, T, density)` | discrete time; one-step contacts separated by Poisson(λ) gaps, started at stationarity | λ solves (1 − e^(−λ))/λ = density. Contacts last one step, so the rate cannot be chosen. |
 | `er_periodic(n, T, density, rate, p=None)` | each edge of G(n, p) is present for density/rate time units roughly every p/rate | p is free with density < p ≤ 1; default p = min(1, 2·density), so edges are present about half the time |
 | `ws_rewiring(n, T, density, rate)` | ring lattice whose edges are rewired one at a time at exponential intervals | neighbour count k = density·(n − 1) rounded to an even number (so the density is matched as closely as k allows); mean time between rewirings 1/(rate · n(n − 1)/2) |
-| `topological_rewiring(n, T, density, rate)` | starts from G(n, density); each rewiring removes an edge lying on a cycle (if any) and adds a random edge | same rewiring interval as above |
+| `topological_rewiring(n, T, density, rate)` | starts from G(n, density); each rewiring removes an edge lying on a cycle (if any) and adds a random edge | same rewiring interval as above. Suppresses homology only in sparse networks (average degree about 2): at higher density most graph cycles are filled by triangles |
 | `sun(n, T, rays=5)` | deterministic structured network | not matched to a density or rate |
 
 All generators take `seed=` for reproducible networks.

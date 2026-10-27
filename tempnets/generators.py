@@ -74,7 +74,13 @@ def ws_rewiring(n, T, density, rate, seed=None):
 
 def topological_rewiring(n, T, density, rate, seed=None):
   """Topologically self-inhibiting: starting from G(n, density), each rewiring removes an
-  edge lying on a cycle (when there is one) and adds a random new edge."""
+  edge lying on a cycle (when there is one) and adds a random new edge.
+
+  The cycles targeted are cycles of the graph, which are holes in the clique complex
+  only when few of them are filled by triangles. The model therefore suppresses
+  homology in sparse networks (average degree about 2: density 2/(n-1)), but not at
+  higher densities, where most edges lie in triangles and removing one tends to open
+  a new hole."""
   with seeded(seed):
     G = nx.gnp_random_graph(n, density, seed=np.random.randint(2**31))
     net, sxs, times = _topological_rewiring(G, params.rewiring_interval(n, rate), T, 1)
