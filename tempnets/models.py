@@ -60,13 +60,15 @@ def report(name,stats):
 birth, stay = binomial_params(dens,new_edge_rate)
 tbin = rand_binomial(n,T,birth,stay,init=dens)
 report("Binomial",array_stats(tbin))
-dgmsbin = array_homology(tbin)
+netbin = TemporalNetwork.from_array(tbin)
+dgmsbin = netbin.flag(max_dim).persistence()
 diags.append(dgmsbin)
 
 #contacts last one time step, so only the density can be matched (see poisson_params)
 tpoiss = rand_poisson(n,T,poisson_params(dens))
 report("Poisson",array_stats(tpoiss))
-dgmspoiss = array_homology(tpoiss)
+netpoiss = TemporalNetwork.from_array(tpoiss)
+dgmspoiss = netpoiss.flag(max_dim).persistence()
 diags.append(dgmspoiss)
 
 
@@ -111,8 +113,8 @@ l = n/r
 #k = int(T/l)
 #T = int(l * k)
 tsun = sun_array(n,T,l)
-sxsSun, timesSun = temp_net_to_clique_clx(tsun)
-zzSun,dgmsSun,cell= zigzag_persistence(sxsSun,timesSun)
+netsun = TemporalNetwork.from_array(tsun)
+dgmsSun = netsun.flag(max_dim).persistence()
 diags.append(dgmsSun)
 
 #dictimes = {tuple(i):j for i,j in zip(sxs,times)}
@@ -131,11 +133,11 @@ diags.append(dgmsTSI)
 
 #Plotting 
 
-plot_diags(dgmsbin,T,rotate=False,title='Binary network',save='figs/tbin_diags')
-plot_diags(dgmspoiss,T,rotate=False,title = 'Poisson network', save='figs/tpoiss_diags')
+plot_diags(dgmsbin,netbin.T,rotate=False,title='Binary network',save='figs/tbin_diags')
+plot_diags(dgmspoiss,netpoiss.T,rotate=False,title = 'Poisson network', save='figs/tpoiss_diags')
 plot_diags(dgmsER,T,rotate=False,save = 'figs/ER_diags')
 plot_diags(dgmsWS,T,save = 'figs/WS_diags')
-plot_diags(dgmsSun,T,save = './figs/sun_diag')
+plot_diags(dgmsSun,netsun.T,save = './figs/sun_diag')
 plot_diags(dgmsTSI,T, save = 'figs/TSI_diags')
 
 # Comparison Tests

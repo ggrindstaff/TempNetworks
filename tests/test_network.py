@@ -41,8 +41,9 @@ def test_flag_matches_array_homology():
   dgms = tn.TemporalNetwork.from_array(arr).flag(max_dim=2).persistence()
   old = array_homology(arr)
   assert len(dgms) == len(old)
+  #array_homology reports dionysus' float32 times
   for new_dgm, old_dgm in zip(dgms, old):
-    assert points(new_dgm) == points(old_dgm)
+    assert np.allclose(sorted(map(tuple, new_dgm)), points(old_dgm), atol=1e-4)
 
 def test_flag_intervals():
   net = tn.TemporalNetwork.from_intervals({(0, 1): [(0, 10)], (1, 2): [(2, 8)], (0, 2): [(5, 9)],
@@ -158,3 +159,23 @@ def test_continuous_autocorrelation_ignores_single_instants():
   assert tn.top_autocorr_continuous(base, tau, T) == tn.top_autocorr_continuous(extra, tau, T)
   with pytest.raises(ValueError):
     tn.top_autocorr_continuous(base, 6, T)
+
+
+def test_union_protocol_lets_a_cycle_persist_across_steps():
+  #step 0: the square 0-1-2-3; step 1: edge (2,3) replaced by the path 2-4-3. In the
+  #union of the two steps, triangle 2-3-4 makes the old and new cycles homologous,
+  #so one 1-cycle persists from step 0 to the end.
+  arr = np.zeros((5, 5, 2))
+  for (i, j) in [(0, 1), (1, 2), (2, 3), (3, 0)]:
+    arr[i, j, 0] = 1
+  for (i, j) in [(0, 1), (1, 2), (2, 4), (4, 3), (3, 0)]:
+    arr[i, j, 1] = 1
+  net = tn.TemporalNetwork.from_array(arr)
+  dgms = net.flag().persistence()
+  assert len(dgms[1]) == 1
+  assert dgms[1][0, 0] == 0 and dgms[1][0, 1] == net.T
+  #no spurious components at the end: the window ends with the last step
+  assert net.T == pytest.approx(1.5, abs=1e-3)
+  assert (dgms[0][:, 0] < 1).all()
+  with pytest.raises(ValueError):
+    tn.TemporalNetwork.from_array(arr, overlap=0)

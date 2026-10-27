@@ -254,10 +254,14 @@ def temp_net_to_clique_clx(arr,inter='union',max_dim=2):
   """Clique complex of a discrete-time network, for dionysus.
 
   arr is an n x n x T array (see discrete.py); arr[i,j,t] or arr[j,i,t] nonzero
-  means i and j are joined at step t. Edges get entry/exit lists from
-  time_list_to_ee(..., inter); a clique of up to max_dim + 1 nodes is present on the
-  intersection of its edges' intervals. Returns (simplices, entry/exit lists).
-  TemporalNetwork.from_array(arr).flag(max_dim) is the same construction."""
+  means i and j are joined at step t. Returns (simplices, entry/exit lists).
+  With inter='union' (the default) this is the union protocol of
+  TemporalNetwork.from_array(arr).flag(max_dim). Otherwise edges get entry/exit lists
+  from time_list_to_ee(..., inter) and a clique of up to max_dim + 1 nodes is present
+  on the intersection of its edges' intervals."""
+  if inter=='union':
+    from .network import TemporalNetwork
+    return TemporalNetwork.from_array(arr).flag(max_dim).to_dionysus()
   n = arr.shape[0]
   T = arr.shape[2]
   simplices = [[i] for i in range(n)]
@@ -485,7 +489,8 @@ def plot_diags(dgms,T,rotate=False,title="",save=""):
 
 def array_homology(input):
     """Zigzag persistence diagrams (dionysus format) of the clique complex, up to
-    dimension 2, of an n x n x T array; see temp_net_to_clique_clx."""
+    dimension 2, of an n x n x T array, with the union protocol; see
+    temp_net_to_clique_clx and TemporalNetwork.from_array."""
     sxs, times = temp_net_to_clique_clx(input)
     #simplices = [sxs]
     #eelist = [times]

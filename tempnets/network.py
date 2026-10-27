@@ -59,19 +59,34 @@ class TemporalNetwork:
     return cls(nodes, intervals, T)
 
   @classmethod
-  def from_array(cls, arr):
+  def from_array(cls, arr, overlap=None):
     """A discrete-time network: arr is n x n x T and arr[i, j, t] != 0 when i and j are
-    joined at step t. Step t covers the time interval [t - 1/2, t + 1/2], so runs of
-    consecutive steps become one interval."""
+    joined at step t.
+
+    Uses the union protocol: between steps t and t+1 the complex is the clique complex
+    of G_t and G_{t+1} together, so a feature can persist through a change from one
+    step to the next. Step t covers [t - 1/2 - overlap/2, t + 1/2 + overlap/2], so runs
+    of consecutive steps form one interval and consecutive steps overlap for a short
+    time `overlap` during which both graphs are present. overlap defaults to 0.001
+    (larger only if T is so long that dionysus' float32 times need it). The network's
+    time window is [0, T - 1/2 + overlap/2], ending with the last step, so births and
+    deaths are at half-integer times shifted by at most overlap/2."""
     n, T = arr.shape[0], arr.shape[2]
+    resolution = float(np.spacing(np.float32(T)))
+    if overlap is None:
+      overlap = max(1e-3, 100 * resolution)
+    if overlap <= 10 * resolution:
+      raise ValueError("overlap must be positive and well above the float32 resolution (%g) at T=%g"
+                       % (resolution, T))
+    half = 0.5 + overlap / 2
     on = (arr != 0) | (arr.transpose(1, 0, 2) != 0)
     intervals = {}
     for i in range(n):
       for j in range(i + 1, n):
         steps = np.flatnonzero(on[i, j])
         if len(steps) > 0:
-          intervals[(i, j)] = [(t - 0.5, t + 0.5) for t in steps]
-    return cls(range(n), intervals, T)
+          intervals[(i, j)] = [(t - half, t + half) for t in steps]
+    return cls(range(n), intervals, T - half + overlap)
 
   @classmethod
   def from_contacts(cls, contacts, duration, T=None, nodes=()):

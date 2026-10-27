@@ -126,16 +126,17 @@ def contacts_array(contacts, n, T):
   return arr
 
 def test_temp_net_to_clique_clx():
-  #triangle 0-1-2 with (0,2) only at t=4 and (1,2) only at t=5: the edges touch at
-  #t=4.5 but are never on together, so there must be no triangle
-  contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (1, 2, 5)]
+  #triangle 0-1-2 with (0,2) only at step 4 and (1,2) only at step 5. With the union
+  #protocol, steps 4 and 5 are present together briefly around t = 4.5, so the
+  #triangle exists for exactly that overlap
+  contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (2, 1, 5)]
   sxs, times = temp_net_to_clique_clx(contacts_array(contacts, 3, 10))
-  assert [0, 1, 2] not in sxs
-  #now (1,2) overlaps (0,2): triangle on exactly the common interval
+  start, end = times[sxs.index([0, 1, 2])]
+  assert start == pytest.approx(4.5, abs=1e-3) and end == pytest.approx(4.5, abs=1e-3) and end > start
   #(stored as (2,1) to check both directions are read)
   contacts = [(0, 1, t) for t in range(3, 7)] + [(0, 2, 4), (0, 2, 5), (2, 1, 5)]
   sxs, times = temp_net_to_clique_clx(contacts_array(contacts, 3, 10))
-  assert times[sxs.index([0, 1, 2])] == [4.5, 5.5]
+  assert times[sxs.index([0, 1, 2])] == pytest.approx([4.5, 5.5], abs=1e-3)
   assert all(strictly_increasing(ee) for ee in times)
   zigzag_persistence(sxs, times)
 

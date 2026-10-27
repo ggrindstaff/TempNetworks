@@ -55,9 +55,16 @@ touching intervals are merged). Ways to build one:
 | Constructor | Input | Convention |
 |---|---|---|
 | `TemporalNetwork.from_intervals(intervals, T)` | `{(u, v): [(start, end), ...]}` | as given |
-| `TemporalNetwork.from_array(arr)` | n × n × T array, `arr[i, j, t] != 0` when i, j are joined at step t | step t covers [t − 1/2, t + 1/2], so consecutive steps form one interval |
+| `TemporalNetwork.from_array(arr)` | n × n × T array, `arr[i, j, t] != 0` when i, j are joined at step t | union protocol (below): step t covers [t − 1/2 − ε/2, t + 1/2 + ε/2]; the window ends with the last step, at T − 1/2 + ε/2 |
 | `TemporalNetwork.from_contacts(contacts, duration)` | `(u, v, t)` contacts | each contact keeps its edge present on [t, t + duration] |
 | `tn.generators.*` | model parameters | see below |
+
+**Discrete time and the union protocol.** Between steps t and t + 1 the complex is the clique
+complex of G_t ∪ G_{t+1}, so a feature (for example a cycle that grows by one vertex) can persist
+through a change from one step to the next: the zigzag is G_t ↪ H_t ↩ G_{t+1}. This is implemented
+by letting consecutive steps overlap for a short time ε (`overlap`, default 0.001), during which
+both graphs, and any cliques they form together, are present. Births and deaths are at half-integer
+times, shifted by at most ε/2. Features that exist only in some H_t appear with persistence ε.
 
 `net.level_set(t)` is the graph at time t, `net.to_array(times)` samples the network, and
 `net.stats()` reports its density and rate.
