@@ -2,7 +2,9 @@
 from .utils import *
 #level_set,plot_diags,temp_net_to_clique_clx, ER_periodic, to_ee, is_in, exponential_rewiring, is_in_ee,intersection
 from .topfunctions import graph_autocorrelation, top_autocorr, burstiness, pers_burstiness
-from .teneto_utils import sun_array
+from .teneto_utils import sun_array, to_array
+from .params import binomial_params, poisson_params, er_periodic_params, ws_params, rewiring_interval, interval_stats, array_stats
+import teneto
 from teneto import TemporalNetwork
 import dionysus as d
 #from bats.visualization.plotly import ScatterVisualization
@@ -23,11 +25,15 @@ T = 100
 n = 40
 max_dim=2
 
-#expected number of edges / (n choose 2) at each time point
-#e.g. p for the Erdos-Renyi models
+#Each random model is specified by T, the average density and the average rate of
+#new edge generation; its own parameters are computed (tempnets/params.py) to match.
+
+#average density: expected fraction of the (n choose 2) node pairs that are edges at each time
 dens = 0.3
 
-#we also specify the temporal rate of edge formation
+#average rate of new edge generation: expected number of new edges per node pair per unit
+#time, i.e. new_edge_rate*(n choose 2) new edges per time step. Edges then last
+#dens/new_edge_rate time steps on average.
 new_edge_rate = 0.1
 
 #store results
@@ -37,32 +43,33 @@ topo = []
 bursty_cv = []
 topo_cv = []
 
+def report(name,stats):
+  print("%s: density %.3f (target %.3f), new edge rate %.3f (target %.3f)" % (name,stats[0],dens,stats[1],new_edge_rate))
+
 
 #discrete
 tbin = TemporalNetwork()
-q = dens + new_edge_rate - new_edge_rate/dens
-tbin.generatenetwork('rand_binomial',size=(n,T), prob=[new_edge_rate,q])
+tbin.generatenetwork('rand_binomial',size=(n,T), prob=binomial_params(dens,new_edge_rate), initialize=dens)
+report("Binomial",array_stats(to_array(tbin)))
 dgmsbin = teneto_homology(tbin)
 diags.append(dgmsbin)
 
-tpoiss = TemporalNetwork()
-tpoiss.generatenetwork('rand_poisson',nnodes=n,ncontacts=int(dens*T),lam=int(1/dens))
-#tpoiss.get_network_when(i=1)
+#contacts last one time step, so only the density can be matched (see poisson_params)
+ncontacts, lam = poisson_params(dens,T)
+tpoiss = TemporalNetwork(from_array=teneto.generatenetwork.rand_poisson(nnodes=n,ncontacts=ncontacts,lam=lam)[:,:,:T])
+report("Poisson",array_stats(to_array(tpoiss)))
 dgmspoiss = teneto_homology(tpoiss)
 diags.append(dgmspoiss)
 
 
-#Erdos-Renyi params
-period = 1/new_edge_rate
-l = 1/q
-p = dens*(period)/l #probability of edges
-#periodic params
-#freq = 8 #time between appearances
-#l = 2   #how long edges stick around
+#Erdos-Renyi periodic: each edge of a G(n,p_ER) graph is present for l_ER time steps
+#out of every freq + l_ER. p_ER is free as long as dens < p_ER <= 1; with p_ER = 2*dens
+#edges are present half of the time.
+p_ER = 2*dens
+freq, l_ER = er_periodic_params(dens,new_edge_rate,p_ER)
 
-#Choose edges with probability $p$, then if chosen, generate a random periodic sequence of timestamps
-
-netER,sxsER,timesER = ER_periodic(n,p,period-l,l,T,max_dim)
+netER,sxsER,timesER = ER_periodic(n,p_ER,freq,l_ER,T,max_dim)
+report("ER periodic",interval_stats(timesER,n,T))
 
 Y = d.Filtration(sxsER)
 dtimes = to_ee(timesER,sxsER,T)
@@ -72,13 +79,12 @@ diags.append(dgmsER)
 
 # Watts-Strogatz with exponential rewiring
 
-k= 3
-p = 0
-l = 2
+#rewiring keeps n*k/2 edges, so k sets the density and the time between rewirings the rate
+k, l_WS = ws_params(n,dens,new_edge_rate)
 
-
-G = nx.watts_strogatz_graph(n,k,p)
-netWS,sxsWS,timesws = exponential_rewiring(G,l,T,max_dim)
+G = nx.watts_strogatz_graph(n,k,0)
+netWS,sxsWS,timesws = exponential_rewiring(G,l_WS,T,max_dim)
+report("Watts-Strogatz rewiring",interval_stats(timesws,n,T))
 Y = d.Filtration(sxsWS)
 dtimes=to_ee(timesws,sxsWS,T)
 
@@ -88,6 +94,7 @@ diags.append(dgmsWS)
 
 
 
+#the sun network is deterministic, so it is not matched to dens/new_edge_rate
 #num rays
 r = 5
 #length of rays
@@ -106,10 +113,10 @@ diags.append(dgmsSun)
 
 #Here we have a random graph (uniform on edges) that is topologically self-inhibiting.
 
-l = 1/new_edge_rate
 G = nx.gnp_random_graph(n,dens)
 
-netTSI,sxsTSI,timesTSI = topological_rewiring(G,l,T)
+netTSI,sxsTSI,timesTSI = topological_rewiring(G,rewiring_interval(n,new_edge_rate),T)
+report("Topologically self-inhibiting",interval_stats(timesTSI,n,T))
 zzTSI,dgmsTSI,cellTSI= d.zigzag_homology_persistence(d.Filtration(sxsTSI),to_ee(timesTSI,sxsTSI,T))
 diags.append(dgmsTSI)
 
@@ -130,15 +137,16 @@ plot_diags(dgmsTSI,T, save = 'figs/TSI_diags')
 
 
 for i in range(50):
-  net,X,times = ER_periodic(n,p,period-l,l,T,max_dim)
+  net,X,times = ER_periodic(n,p_ER,freq,l_ER,T,max_dim)
   bursty_cv.append(burstiness(times))
   #all_K = X.complex().get_simplices()
   zz,dgms,cell=d.zigzag_homology_persistence(d.Filtration(X),to_ee(times,X,T))
   #cv(all_finite_pers[0]+all_finite_pers[1])
   topo_cv.append(pers_burstiness(dgms,T))
-  adjacency.append(graph_autocorrelation(net,dtimes,np.linspace(0, T, T)))
+  adjacency.append(graph_autocorrelation(net,graph_ee(net,times,T),np.linspace(0, T, T)))
   topo.append(top_autocorr(dgms,np.linspace(0, T, T),format='dionysus'))
 
+plt.figure()
 plt.scatter(adjacency,topo)
 plt.xlabel("Graph adjacency correlation")
 plt.ylabel("Topological correlation")
@@ -147,11 +155,11 @@ plt.savefig('./figs/adjacency.png')
 
 # Compare burstiness and topological burstiness
 
+plt.figure()
 plt.scatter(bursty_cv,topo_cv)
 plt.xlabel("Burstiness (CV)")
 plt.ylabel("Topological variation")
 plt.title("Experiment 1, ER periodic")
-plt.legend()
 plt.savefig('./figs/burstiness.png')
 
 """
