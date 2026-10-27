@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-from .utils import level_set
+from .utils import level_set, as_arrays
 import dionysus as d
 
 def autocorrelation(gamma,lag=1):
@@ -33,42 +33,26 @@ def graph_autocorrelation(G,times, snapshots):
                                  level_set(G,times,snapshots[i+1])) for i in range(len(snapshots)-1)]
   return autocorrelation(gamma)
 
-def dgm_correlation(dgms,t1,t2,format='tuples'):
-  f1 = 0
-  f2 = 0
-  f12 = 0
-  if format=='tuples':
-    for dgm in dgms:
-      for (b,d) in dgm:
-        f1 = f1 + int(b<=t1<=d)
-        f2 = f2 + int(b<=t2<=d)
-        f12 = f12 + int(b<=t1<=d and b<=t2<=d)
-  if format=='dionysus':
-    for dgm in dgms:
-      for p in dgm:
-        bi = p.birth
-        de = p.death
-        f1 = f1 + int(bi<=t1<=de)
-        f2 = f2 + int(bi<=t2<=de)
-        f12 = f12 + int(bi<=t1<=de and bi<=t2<=de)
-  if f1*f2==0:
-    return 0
-  else: return f12/np.sqrt(f1*f2)
-
-def dgm_points(dgms,format='tuples'):
-  #births and deaths of the points of all dimensions, as two arrays
-  if format=='dionysus':
-    pts = [(p.birth,p.death) for dgm in dgms for p in dgm]
-  else:
-    pts = [(b,d) for dgm in dgms for (b,d) in dgm]
-  if len(pts)==0:
-    return np.zeros(0),np.zeros(0)
-  pts = np.array(pts,dtype=float)
+def dgm_points(dgms,format=None):
+  #births and deaths of the points of all dimensions, as two arrays (any diagram
+  #format; format is accepted for compatibility and ignored)
+  pts = np.concatenate(as_arrays(dgms)+[np.zeros((0,2))])
   return pts[:,0],pts[:,1]
 
-def top_autocorr(dgms,snapshots,lag=1,format='tuples'):
+def dgm_correlation(dgms,t1,t2,format=None):
+  #f12/sqrt(f1*f2), where f1, f2 count the points alive at t1, t2 and f12 at both
+  birth,death = dgm_points(dgms)
+  a1 = (birth<=t1) & (t1<=death)
+  a2 = (birth<=t2) & (t2<=death)
+  f1 = a1.sum()
+  f2 = a2.sum()
+  if f1*f2==0:
+    return 0
+  return (a1 & a2).sum()/np.sqrt(f1*f2)
+
+def top_autocorr(dgms,snapshots,lag=1,format=None):
   #dgm_correlation between consecutive snapshots, computed for all snapshots at once
-  birth,death = dgm_points(dgms,format)
+  birth,death = dgm_points(dgms)
   s = np.asarray(snapshots,dtype=float)
   #alive[k,i]: point k is alive at snapshots[i]
   alive = (birth[:,None]<=s[None,:]) & (s[None,:]<=death[:,None])
@@ -95,7 +79,7 @@ def top_stationarity(dgms,times):
     w = np.random.exponential(scale=1)
     if t[x]+w > T:
       w = T-t[x]
-    corr = dgm_correlation(dgms,t[x],t[x]+w,format=format)
+    corr = dgm_correlation(dgms,t[x],t[x]+w)
     dac.append(corr)
 
   return np.cov(t,dac)[0,1]
@@ -127,11 +111,11 @@ def top_change_burstiness(dgms):
 
 def pers_burstiness(dgms,T):
   all_finite_pers = []
-  for i,dgm in enumerate(dgms):
+  for i,dgm in enumerate(as_arrays(dgms)):
     newpers = []
-    for p in dgm:
-      if p.death < T:
-        newpers.append(p.death-p.birth)
+    for (b,dth) in dgm:
+      if dth < T:
+        newpers.append(dth-b)
     all_finite_pers.append(newpers)
   return cv([pers for sublist in all_finite_pers for pers in sublist])
 
@@ -139,15 +123,15 @@ def top_burstiness(dgms,T, j=None):
   scores = []
   if j==None:
     j = len(dgms)
-  for i,dgm in enumerate(dgms):
+  for i,dgm in enumerate(as_arrays(dgms)):
     if i>=j:
       break
     newbirth = []
     newdeath = []
-    for p in dgm:
-      newbirth.append(p.birth)
-      if p.death < T:
-        newdeath.append(p.death)
+    for (b,dth) in dgm:
+      newbirth.append(b)
+      if dth < T:
+        newdeath.append(dth)
     interbirth = np.diff(sorted(newbirth))
     interdeath = np.diff(sorted(newdeath))
     scores.append(cv(interbirth))
@@ -157,13 +141,13 @@ def top_burstiness(dgms,T, j=None):
 def persistence(dgms,t1,t2):
   persist=0
   change=0
-  for dgm in dgms:
-    for point in dgm:
-      if point.birth<=t1 and point.death>=t2:
+  for dgm in as_arrays(dgms):
+    for (b,dth) in dgm:
+      if b<=t1 and dth>=t2:
         persist=persist+1
-      if t1<=point.birth<=t2:
+      if t1<=b<=t2:
         change = change+1
-      if t1<=point.death<=t2:
+      if t1<=dth<=t2:
         change = change+1
   return persist,change
 

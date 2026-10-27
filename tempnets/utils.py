@@ -6,7 +6,6 @@ import networkx as nx
 import itertools
 from bisect import bisect_right
 #import persim
-np.random.seed(10)
 
 from matplotlib import rc
 rc('animation', html='jshtml')
@@ -154,6 +153,17 @@ def is_in_ee(dtimes,t):
     if dtimes[i]<=t<=dtimes[i+1]:
       return i%2==0
   return False
+
+def as_arrays(dgms):
+  #persistence diagrams in any of the package's formats (dionysus diagrams, lists of
+  #(birth, death) tuples, or arrays) -> one float array of (birth, death) rows per dimension
+  out = []
+  for dgm in dgms:
+    if isinstance(dgm,np.ndarray):
+      out.append(dgm.astype(float).reshape(-1,2))
+    else:
+      out.append(np.array([(p.birth,p.death) if hasattr(p,'birth') else tuple(p) for p in dgm],dtype=float).reshape(-1,2))
+  return out
 
 """## Zigzag persistence
 
@@ -349,16 +359,16 @@ def plot_diags(dgms,T,rotate=False,title="",save=""):
   death = []
   pers = []
   infinity_line = T+eps
-  for i,dgm in enumerate(dgms):
+  for i,dgm in enumerate(as_arrays(dgms)):
     newbirth = []
     newdeath = []
     newpers = []
     #print("Dimension",i)
-    for p in dgm:
-      newbirth.append(p.birth)
-      if p.death < T:
-        newdeath.append(p.death)
-        newpers.append(p.death-p.birth)
+    for (b,dth) in dgm:
+      newbirth.append(b)
+      if dth < T:
+        newdeath.append(dth)
+        newpers.append(dth-b)
       else:
         newdeath.append(infinity_line)
         newpers.append(infinity_line)
