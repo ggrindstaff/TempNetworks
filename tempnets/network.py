@@ -14,7 +14,7 @@ import numpy as np
 
 from .utils import intersection, zigzag_persistence
 from .params import interval_stats
-from .topfunctions import adjacency_correlation, autocorrelation
+from .topfunctions import adjacency_correlation, autocorrelation, continuous_autocorrelation, cover, cosine
 
 NetworkStats = namedtuple('NetworkStats', ['density', 'rate'])
 
@@ -159,6 +159,32 @@ class TemporalNetwork:
       gamma.append(adjacency_correlation(prev, cur))
       prev = cur
     return autocorrelation(gamma, lag)
+
+  def graph_autocorrelation_continuous(self, tau):
+    """Snapshot-free graph_autocorrelation with lag tau (see topfunctions): gamma(t) is
+    the adjacency correlation of the level sets at t and t+tau, i.e. for each node the
+    number of neighbours joined at both times over sqrt(degree at t * degree at t+tau),
+    averaged over all nodes."""
+    incident = {v: ([], []) for v in self.nodes}
+    for (u, v), ints in self.intervals.items():
+      shifted = [(s - tau, e - tau) for (s, e) in ints]
+      both = intersection([ints, shifted])
+      for w in (u, v):
+        incident[w][0].extend(ints)
+        incident[w][1].extend(both)
+    per_node = []
+    for v in self.nodes:
+      ints, both = incident[v]
+      per_node.append((np.sort([s for s, e in ints]), np.sort([e for s, e in ints]),
+                       np.sort([s for s, e in both]), np.sort([e for s, e in both])))
+    def gamma(t):
+      total = np.zeros(len(t))
+      for (starts, ends, bstarts, bends) in per_node:
+        total += cosine(cover(bstarts, bends, t), cover(starts, ends, t), cover(starts, ends, t + tau))
+      return total / self.n
+    ends = [x for ints in self.intervals.values() for iv in ints for x in iv]
+    breaks = np.concatenate([ends, np.asarray(ends) - tau])
+    return continuous_autocorrelation(gamma, breaks, self.T, tau)
 
 
 class TemporalComplex:

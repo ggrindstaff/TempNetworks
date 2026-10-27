@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import tempnets as tn
-from tempnets.topfunctions import top_autocorr, top_burstiness
+from tempnets.topfunctions import top_burstiness
 from pathlib import Path
 
 current_dir = Path(__file__).resolve().parent
@@ -33,6 +33,9 @@ and is then kept for the same duration."""
 buffer_list = [minute,10*minute, hour, 4*hour, 10*hour, day, 2*day]
 buffer = ["1 minute","10 minutes", "1 hour", "4 hours", "10 hours", "24 hours", "48 hours"]
 
+#lag for the autocorrelation statistics: the spacing of 50 evenly spaced snapshots on [0, T]
+tau = T/49
+
 hosp_dgm = []
 hosp_graph_auto=[]
 for j in range(len(buffer_list)):
@@ -40,11 +43,11 @@ for j in range(len(buffer_list)):
   net = tn.TemporalNetwork.from_contacts(contacts, duration, T=T)
   cx = tn.TemporalComplex.from_contacts(contacts, duration, max_dim=2, T=T)
   dgms = cx.persistence()
-  hosp_graph_auto.append(net.graph_autocorrelation(np.linspace(0, T)))
+  hosp_graph_auto.append(net.graph_autocorrelation_continuous(tau))
   hosp_dgm.append(dgms)
   tn.plot_diags(dgms,T,title = buffer[j],save='figs/'+buffer[j])
 
-auto_array = [top_autocorr(hosp_dgm[i],np.linspace(0, T)) for i in range(7)]
+auto_array = [tn.top_autocorr_continuous(hosp_dgm[i],tau,T) for i in range(7)]
 plt.figure()
 plt.plot(auto_array)
 plt.ylim(0,1)

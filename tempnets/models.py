@@ -3,6 +3,8 @@ from .utils import *
 #level_set,plot_diags,temp_net_to_clique_clx, ER_periodic, to_ee, is_in, exponential_rewiring, is_in_ee,intersection
 from .topfunctions import graph_autocorrelation, top_autocorr, burstiness, pers_burstiness
 from .discrete import sun_array, rand_binomial, rand_poisson
+from .network import TemporalNetwork
+from .topfunctions import top_autocorr_continuous
 from .params import binomial_params, poisson_params, er_periodic_params, ws_params, rewiring_interval, interval_stats, array_stats
 import dionysus as d
 #from bats.visualization.plotly import ScatterVisualization
@@ -133,6 +135,9 @@ plot_diags(dgmsTSI,T, save = 'figs/TSI_diags')
 
 
 
+#lag for the autocorrelation statistics: the spacing of T evenly spaced snapshots on [0, T]
+tau = T/(T-1)
+
 for i in range(50):
   net,X,times = ER_periodic(n,p_ER,freq,l_ER,T,max_dim)
   bursty_cv.append(burstiness(times))
@@ -140,8 +145,9 @@ for i in range(50):
   zz,dgms,cell=zigzag_persistence(X,to_ee(times,X,T))
   #cv(all_finite_pers[0]+all_finite_pers[1])
   topo_cv.append(pers_burstiness(dgms,T))
-  adjacency.append(graph_autocorrelation(net,graph_ee(net,times,T),np.linspace(0, T, T)))
-  topo.append(top_autocorr(dgms,np.linspace(0, T, T),format='dionysus'))
+  edges = {e: ints for e, ints in times.items() if len(e)==2}
+  adjacency.append(TemporalNetwork.from_intervals(edges,T,nodes=range(n)).graph_autocorrelation_continuous(tau))
+  topo.append(top_autocorr_continuous(dgms,tau,T))
 
 plt.figure()
 plt.scatter(adjacency,topo)

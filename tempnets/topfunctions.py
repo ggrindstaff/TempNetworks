@@ -62,6 +62,59 @@ def top_autocorr(dgms,snapshots,lag=1,format=None):
   gamma = np.where(f1f2==0, 0, f12/np.sqrt(np.maximum(f1f2,1)))
   return autocorrelation(list(gamma),lag)
 
+"""## Snapshot-free autocorrelation
+
+The snapshot statistics compare what is alive at consecutive snapshots t and t+tau
+(tau being the snapshot spacing) and take the lag-1 autocorrelation of that series.
+The versions below use every time t instead of a grid:
+  gamma(t) = cosine similarity of what is alive at t and at t+tau,  t in [0, T-tau]
+  rho = int_0^{T-2tau} (gamma(t)-gbar)(gamma(t+tau)-gbar) dt / int_0^{T-tau} (gamma(t)-gbar)^2 dt
+with gbar the mean of gamma on [0, T-tau]. gamma is a step function, so the integrals
+are computed exactly from its breakpoints; single instants carry no weight.
+"""
+
+def cover(starts,ends,x):
+  #number of intervals [starts[k], ends[k]] containing each x; starts and ends sorted
+  return np.searchsorted(starts,x,side='right') - np.searchsorted(ends,x,side='left')
+
+def cosine(f12,f1,f2):
+  #f12/sqrt(f1*f2), 0 where f1*f2 == 0
+  f1f2 = f1*f2
+  return np.where(f1f2==0, 0, f12/np.sqrt(np.maximum(f1f2,1)))
+
+def continuous_autocorrelation(gamma,breaks,T,tau):
+  #rho for a step function gamma (vectorized in t) constant between the given breaks
+  if not 0 < 2*tau < T:
+    raise ValueError("need 0 < 2*tau < T")
+  breaks = np.asarray(breaks,dtype=float)
+  breaks = breaks[np.isfinite(breaks)]
+  def segments(hi,extra):
+    pts = np.unique(np.clip(np.concatenate([breaks,extra,[0,hi]]),0,hi))
+    lens = np.diff(pts)
+    return pts[:-1]+lens/2, lens
+  mids,lens = segments(T-tau,[])
+  g = gamma(mids)
+  gbar = (g*lens).sum()/lens.sum()
+  denom = ((g-gbar)**2*lens).sum()
+  if denom==0:
+    return 0
+  mids,lens = segments(T-2*tau,breaks-tau)
+  return ((gamma(mids)-gbar)*(gamma(mids+tau)-gbar)*lens).sum()/denom
+
+def top_autocorr_continuous(dgms,tau,T):
+  """Snapshot-free top_autocorr with lag tau on [0, T]; diagrams in any format."""
+  birth,death = dgm_points(dgms)
+  starts = np.sort(birth)
+  ends = np.sort(death)
+  #points alive at both t and t+tau are those with birth <= t <= death-tau
+  both = death-tau >= birth
+  bstarts = np.sort(birth[both])
+  bends = np.sort(death[both]-tau)
+  def gamma(t):
+    return cosine(cover(bstarts,bends,t),cover(starts,ends,t),cover(starts,ends,t+tau))
+  breaks = np.concatenate([birth,death,birth-tau,death-tau])
+  return continuous_autocorrelation(gamma,breaks,T,tau)
+
 def top_stationarity(dgms,times):
   if type(times)==dict:
     format='tuples'

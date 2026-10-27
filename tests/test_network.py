@@ -113,3 +113,48 @@ def test_persistence_reports_exact_times():
   #every reported time is exactly one of the event times
   assert set(dgms[0].ravel().tolist()) <= {0.0, 1 / 3, 2.7, 50.1, T}
   assert 50.1 in dgms[0][:, 0].tolist()
+
+
+def riemann_rho(gamma_at, T, tau, m=40000):
+  #brute force: midpoint-rule integrals on a fine grid
+  def grid(hi):
+    h = hi / m
+    return (np.arange(m) + 0.5) * h, h
+  t, h = grid(T - tau)
+  g = gamma_at(t)
+  gbar = g.mean()
+  denom = ((g - gbar) ** 2).sum() * h
+  t2, h2 = grid(T - 2 * tau)
+  return ((gamma_at(t2) - gbar) * (gamma_at(t2 + tau) - gbar)).sum() * h2 / denom
+
+def test_top_autocorr_continuous_matches_brute_force():
+  from tempnets.topfunctions import dgm_correlation
+  rng = np.random.default_rng(1)
+  T, tau = 20.0, 1.3
+  b = rng.uniform(0, T, 60)
+  d = np.minimum(b + rng.exponential(3, 60), T)
+  d[:5] = np.inf
+  dgms = [np.column_stack([b[:40], d[:40]]), np.column_stack([b[40:], d[40:]])]
+  gamma_at = np.vectorize(lambda t: dgm_correlation(dgms, t, t + tau), otypes=[float])
+  assert tn.top_autocorr_continuous(dgms, tau, T) == pytest.approx(riemann_rho(gamma_at, T, tau, 20000), abs=2e-3)
+
+def test_graph_autocorrelation_continuous_matches_brute_force():
+  net = tn.generators.er_periodic(8, 20, 0.3, 0.2, seed=4)
+  T, tau = 20, 0.7
+  def gamma_at(t):
+    A = net.to_array(t)
+    B = net.to_array(t + tau)
+    f12 = (A * B).sum(axis=1)
+    f1f2 = A.sum(axis=1) * B.sum(axis=1)
+    per_node = np.where(f1f2 == 0, 0, f12 / np.sqrt(np.maximum(f1f2, 1)))
+    return per_node.mean(axis=0)
+  assert net.graph_autocorrelation_continuous(tau) == pytest.approx(riemann_rho(gamma_at, T, tau, 20000), abs=2e-3)
+
+def test_continuous_autocorrelation_ignores_single_instants():
+  #a point born and dying at the final instant changes the snapshot statistic but not this one
+  T, tau = 10.0, 1.0
+  base = [np.array([[0, 4], [1, 7], [2, 10], [5, 9]], dtype=float)]
+  extra = [np.vstack([base[0], [[10, 10]]])]
+  assert tn.top_autocorr_continuous(base, tau, T) == tn.top_autocorr_continuous(extra, tau, T)
+  with pytest.raises(ValueError):
+    tn.top_autocorr_continuous(base, 6, T)
