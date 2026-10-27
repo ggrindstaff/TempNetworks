@@ -1,12 +1,11 @@
 import networkx as nx
 import numpy as np
-import dionysus as d
 import pytest
 
 from tempnets.utils import (level_set, intersection, time_list_to_ee, graph_ee, to_ee,
                             ER_periodic, periodic_intervals, exponential_rewiring,
                             topological_rewiring, remove_a_loop, add_rand_edge, remove_rand_edge,
-                            plot_diags, temp_net_to_clique_clx)
+                            plot_diags, temp_net_to_clique_clx, snap_ee, zigzag_persistence)
 from tempnets.topfunctions import autocorrelation
 
 
@@ -71,7 +70,7 @@ def test_exponential_rewiring_gives_valid_zigzag():
   net, sxs, times = exponential_rewiring(G, 0.01, 5, 2)
   dtimes = to_ee(times, sxs, 5)
   assert all(strictly_increasing(ee) for ee in dtimes)
-  d.zigzag_homology_persistence(d.Filtration(sxs), dtimes)
+  zigzag_persistence(sxs, dtimes)
 
 
 def test_remove_a_loop_removes_a_cycle_edge():
@@ -97,7 +96,7 @@ def test_topological_rewiring_gives_valid_zigzag():
   net, sxs, times = topological_rewiring(G, 0.01, 5)
   dtimes = to_ee(times, sxs, 5)
   assert all(strictly_increasing(ee) for ee in dtimes)
-  d.zigzag_homology_persistence(d.Filtration(sxs), dtimes)
+  zigzag_persistence(sxs, dtimes)
 
 
 class Point:
@@ -138,4 +137,21 @@ def test_temp_net_to_clique_clx():
   sxs, times = temp_net_to_clique_clx(contacts_array(contacts, 3, 10))
   assert times[sxs.index([0, 1, 2])] == [4.5, 5.5]
   assert all(strictly_increasing(ee) for ee in times)
-  d.zigzag_homology_persistence(d.Filtration(sxs), times)
+  zigzag_persistence(sxs, times)
+
+
+def test_snap_ee():
+  assert snap_ee([0, 10]) == [0, 10]
+  #an interval shorter than float32 resolution disappears
+  assert snap_ee([0, 10, 50.0, 50.0 + 1e-7]) == [0, 10]
+  #so does a gap that short: the two intervals merge
+  assert snap_ee([0, 50.0, 50.0 + 1e-7, 60]) == [0, 60]
+  #an open-ended list stays open-ended
+  assert snap_ee([5, 50.0, 50.0 + 1e-7]) == [5]
+
+def test_zigzag_persistence_with_sliver_interval():
+  #edge (0,1) present for 1e-7, below dionysus' float32 resolution; raw dionysus rejects this
+  sxs = [[0], [1], [0, 1]]
+  times = [[0, 100], [0, 100], [50.0, 50.0 + 1e-7]]
+  zz, dgms, cells = zigzag_persistence(sxs, times)
+  assert sorted((p.birth, p.death) for p in dgms[0]) == [(0, 100), (0, 100)]

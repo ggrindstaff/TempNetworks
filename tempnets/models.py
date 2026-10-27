@@ -70,7 +70,7 @@ report("ER periodic",interval_stats(timesER,n,T))
 
 Y = d.Filtration(sxsER)
 dtimes = to_ee(timesER,sxsER,T)
-zzER,dgmsER,cellER=d.zigzag_homology_persistence(Y,dtimes)
+zzER,dgmsER,cellER=zigzag_persistence(Y,dtimes)
 diags.append(dgmsER)
 
 
@@ -85,7 +85,7 @@ report("Watts-Strogatz rewiring",interval_stats(timesws,n,T))
 Y = d.Filtration(sxsWS)
 dtimes=to_ee(timesws,sxsWS,T)
 
-zz,dgmsWS,cell=d.zigzag_homology_persistence(Y,dtimes)
+zz,dgmsWS,cell=zigzag_persistence(Y,dtimes)
 diags.append(dgmsWS)
 
 
@@ -101,7 +101,7 @@ l = n/r
 #T = int(l * k)
 tsun = sun_array(n,T,l)
 sxsSun, timesSun = temp_net_to_clique_clx(tsun)
-zzSun,dgmsSun,cell= d.zigzag_homology_persistence(d.Filtration(sxsSun),timesSun)
+zzSun,dgmsSun,cell= zigzag_persistence(sxsSun,timesSun)
 diags.append(dgmsSun)
 
 #dictimes = {tuple(i):j for i,j in zip(sxs,times)}
@@ -114,7 +114,7 @@ G = nx.gnp_random_graph(n,dens)
 
 netTSI,sxsTSI,timesTSI = topological_rewiring(G,rewiring_interval(n,new_edge_rate),T)
 report("Topologically self-inhibiting",interval_stats(timesTSI,n,T))
-zzTSI,dgmsTSI,cellTSI= d.zigzag_homology_persistence(d.Filtration(sxsTSI),to_ee(timesTSI,sxsTSI,T))
+zzTSI,dgmsTSI,cellTSI= zigzag_persistence(sxsTSI,to_ee(timesTSI,sxsTSI,T))
 diags.append(dgmsTSI)
 
 
@@ -137,7 +137,7 @@ for i in range(50):
   net,X,times = ER_periodic(n,p_ER,freq,l_ER,T,max_dim)
   bursty_cv.append(burstiness(times))
   #all_K = X.complex().get_simplices()
-  zz,dgms,cell=d.zigzag_homology_persistence(d.Filtration(X),to_ee(times,X,T))
+  zz,dgms,cell=zigzag_persistence(X,to_ee(times,X,T))
   #cv(all_finite_pers[0]+all_finite_pers[1])
   topo_cv.append(pers_burstiness(dgms,T))
   adjacency.append(graph_autocorrelation(net,graph_ee(net,times,T),np.linspace(0, T, T)))

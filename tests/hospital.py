@@ -6,7 +6,7 @@ import networkx as nx
 import dionysus as d
 import itertools
 import matplotlib.pyplot as plt
-from tempnets.utils import timelist_to_ee_non_int, plot_diags
+from tempnets.utils import timelist_to_ee_non_int, plot_diags, zigzag_persistence
 from tempnets.topfunctions import graph_autocorrelation, top_autocorr, top_burstiness
 #from ..tempnets.utils import 
 #from ..tempnets.topfunctions import 
@@ -70,8 +70,7 @@ for j in range(len(buffer_list)):
           temp = sorted(list(time))
           times.append(timelist_to_ee_non_int(temp,all_times,buffer=buffer_list[j]))
 
-  fil = d.Filtration(sxs)
-  zz,dgms,cell = d.zigzag_homology_persistence(fil,times)
+  zz,dgms,cell = zigzag_persistence(sxs,times)
   hosp_graph_auto.append(graph_autocorrelation(G_ordered,times,np.linspace(0, T_idx)))
   hosp_dgm.append(dgms)
   plot_diags(dgms,T_idx,title = buffer[j],save='figs/'+buffer[j])

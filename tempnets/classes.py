@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib import rc
 import itertools
-from .utils import intersection, plot_diags
+from .utils import intersection, plot_diags, zigzag_persistence
 rc('animation', html='jshtml')
 
 class TemporalGraphComplex:
@@ -231,7 +231,7 @@ class TemporalGraphComplex:
 
     def dionysus_ph(self):
       dtimes = self.to_dionysus_format()
-      zz,dgms,cell=d.zigzag_homology_persistence(self.Y,dtimes)
+      zz,dgms,cell=zigzag_persistence(self.Y,dtimes)
       self.dgms = dgms
       self.birth = []
       self.death = []

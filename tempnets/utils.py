@@ -155,6 +155,30 @@ def is_in_ee(dtimes,t):
       return i%2==0
   return False
 
+"""## Zigzag persistence
+
+dionysus stores times as 32-bit floats (resolution about 4e-6 at t=50), so an interval
+shorter than that collapses to a point and dionysus rejects the whole filtration.
+"""
+
+def snap_ee(ee):
+  #round an entry/exit list to float32, dropping intervals that collapse to a point and
+  #merging intervals whose gap collapses. Rounding is monotone, so a coface's
+  #intervals stay inside its faces' intervals.
+  out = []
+  for x in np.asarray(ee,dtype=np.float32).tolist():
+    if len(out)>0 and x<=out[-1]:
+      out.pop()
+    else:
+      out.append(x)
+  return out
+
+def zigzag_persistence(sxs,dtimes):
+  #d.zigzag_homology_persistence on a list of simplices (or a d.Filtration) and their
+  #entry/exit lists, with times made safe for dionysus; returns (zz, dgms, cells)
+  f = sxs if isinstance(sxs,d.Filtration) else d.Filtration(sxs)
+  return d.zigzag_homology_persistence(f,[snap_ee(ee) for ee in dtimes])
+
 """## Simplicial functions
 
 This function checks whether a zigzag complex (represented by a list of simplices sxs and a corresponding dictionary of timesteps timebank) is in fact a simplicial complex at each timestep.
@@ -209,7 +233,6 @@ def temp_net_to_clique_clx(arr,inter='union',max_dim=2):
           simplices.append(list(sx))
           times.append(list(itertools.chain.from_iterable(time)))
   return simplices, times
-  #d.zigzag_homology_persistence(D, times)
 
 """## Random model generators"""
 
@@ -392,7 +415,7 @@ def array_homology(input):
     #simplices = [sxs]
     #eelist = [times]
     # flag function
-    zz,dgms,cell= d.zigzag_homology_persistence(d.Filtration(sxs),times)
+    zz,dgms,cell= zigzag_persistence(sxs,times)
     results = [dgms]
     return dgms
 
